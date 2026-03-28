@@ -104,18 +104,18 @@ subprocess.Popen(
 time.sleep(4)  # 等 Streamlit 起來
 
 try:
-    from pyngrok import ngrok as _ngrok
-    public_url = _ngrok.connect(PORT).public_url
-    print(f"\n🔗 公開網址：{public_url}")
-    print("   ↑ 手機/電腦直接開這個連結即可！\n")
-    _tg("\n".join([
+    from google.colab.output import eval_js as _eval_js
+    public_url = _eval_js(f"google.colab.kernel.proxyPort({PORT})")
+    print(f"\n🔗 您的連結：{public_url}")
+    print("   ↑ 用同一個 Google 帳號登入的瀏覽器/手機都可以開！\n")
+    _tg(chr(10).join([
         "🏀 NBA 戰情系統 V34.1 已啟動！",
         f"🔗 連結：{public_url}",
-        "📱 用手機瀏覽器打開即可查看今日戰情！",
+        "📱 用同一 Google 帳號的手機瀏覽器打開即可！",
     ]))
     print("📲 Telegram 連結已推播！")
 except Exception as _ng_err:
-    print(f"⚠️  ngrok 啟動失敗（{_ng_err}），請手動從 Colab 左側取得連結")
+    print(f"⚠️  取得連結失敗：{_ng_err}")
 
 print("\n💡 可用指令：")
 print("   run_today_analysis()    ← 今日分析")
