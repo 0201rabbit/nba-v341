@@ -368,7 +368,7 @@ def run_monte_carlo(
         'pred_home':         round(float(np.mean(home_sims)), 1),
         'pred_away':         round(float(np.mean(away_sims)), 1),
         'pred_spread':       round(float(np.mean(spread_sims)), 1),
-        'pred_total':        round(float(np.mean(home_sims + away_sims)), 1),
+        'pred_total':        round(float(np.mean(home_sims + away_sims)) + 6.0, 1),  # 季末校正：實際比預測最多低 5.9 分
         'win_prob_home':     round(win_prob_home, 4),
         'win_prob_away':     round(win_prob_away, 4),
         'sigma_used':        sigma,
@@ -494,7 +494,9 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
             if prob > SPREAD_WIN_MAX:
                 continue
             ev = min(calc_ev(prob, -110), EV_MAX)
-            if ev > 0:
+            # ⏳ UNDER 門檻提高：實際 UNDER 命中率僅 22.2%，需要更強的信號才推薦
+            under_ev_min = 0.25 if direction == 'UNDER' else 0.0
+            if ev > under_ev_min:
                 candidates.append({
                     'bet_type': 'TOTAL', 'direction': direction,
                     'description': desc, 'win_prob': round(prob, 4),

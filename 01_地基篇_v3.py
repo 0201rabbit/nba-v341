@@ -673,8 +673,19 @@ def save_prediction(pred: dict):
     pred.setdefault('ot_prob', 0.0)
     pred.setdefault('win_pred_confidence', 'LOW')
     pred.setdefault('risk_tags', '[]')
-    
+
     conn = sqlite3.connect(DB_PATH)
+
+    # ── 防重複：同一場賽事同一天只存一筆（避免多次執行分析重複寫入）──
+    existing = conn.execute(
+        'SELECT COUNT(*) FROM predictions WHERE game_id=? AND game_date_est=?',
+        (pred.get('game_id'), pred.get('game_date_est'))
+    ).fetchone()[0]
+    if existing > 0:
+        print(f"⏭️  已存在，跳過：{pred.get('away_team')} @ {pred.get('home_team')} ({pred.get('game_date_est')})")
+        conn.close()
+        return
+
     conn.execute('''
         INSERT INTO predictions (
             game_id, game_date_est, game_time_est, home_team, away_team,
