@@ -85,7 +85,7 @@ def tg_send(lines: list, token=None, chat_id=None) -> bool:
     if not _tok or not _chat:
         return False
     try:
-        msg = "\n".join(str(l) for l in lines)
+        msg = chr(10).join(str(l) for l in lines)
         url = f"https://api.telegram.org/bot{_tok}/sendMessage"
         _r.get(url, params={"chat_id": _chat, "text": msg}, timeout=5)
         return True
