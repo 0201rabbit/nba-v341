@@ -1,0 +1,31 @@
+# macOS 系統檔
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 截圖與圖片（不需要上傳）
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Python 暫存
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# 資料庫（本地存放，不上傳）
+*.db
+*.sqlite3
+
+# 日誌
+*.log
+
+# 環境設定（含 Token，絕對不能上傳！）
+streamlit_config.json
+.env
+secrets.json
+
+# 其他
+walkthrough V34.1
