@@ -8,11 +8,9 @@
 #
 # =============================================================
 
-import subprocess, sys, os, shutil, json, time
+import subprocess, sys, os, json, time
 
 REPO_DIR  = '/content/nba-v341'
-APP_SRC   = os.path.join(REPO_DIR, '07_啟動Streamlit.py')
-APP_DST   = '/content/streamlit_app.py'
 CFG_PATH  = '/content/streamlit_config.json'
 
 print("🏀 NBA 戰情系統 V34.1 啟動中...")
@@ -29,14 +27,13 @@ if 'Already up to date' in r.stdout:
 else:
     print(f"   📥 {r.stdout.strip() or r.stderr.strip()}")
 
-# ── Step 2：複製最新 Streamlit 到執行位置 ──────────────────
-print("\n📋 Step 2：更新 streamlit_app.py...")
-if os.path.exists(APP_SRC):
-    shutil.copy2(APP_SRC, APP_DST)
-    print(f"   ✅ 已複製 {APP_SRC} → {APP_DST}")
-else:
-    print(f"   ❌ 找不到 {APP_SRC}，請確認 git pull 成功")
+# ── Step 2：確認 Streamlit 生成腳本存在 ────────────────────
+print("\n📋 Step 2：確認生成腳本...")
+_gen = os.path.join(REPO_DIR, '07_啟動Streamlit.py')
+if not os.path.exists(_gen):
+    print(f"   ❌ 找不到 {_gen}，請確認 git pull 成功")
     sys.exit(1)
+print(f"   ✅ 生成腳本就緒")
 
 # ── Step 3：讀取 API Token 設定 ────────────────────────────
 _tok, _chat = None, None
@@ -74,7 +71,7 @@ modules = [
     ('06_每日一鍵執行.py',   '每日一鍵執行'),
 ]
 
-print("\n📡 Step 4：載入模組...")
+print("\n📡 Step 4：載入模組 + 啟動系統...")
 for filename, name in modules:
     path = os.path.join(REPO_DIR, filename)
     if os.path.exists(path):
@@ -85,27 +82,14 @@ for filename, name in modules:
         print(f"   ❌ 找不到 {path}")
         sys.exit(1)
 
-print("\n" + "=" * 50)
-print("🎉 所有模組載入完成！")
-print("=" * 50)
+print("\n🌐 Step 5：生成 streamlit_app.py 並啟動系統...")
+exec(open(_gen).read(), globals())
 
-# ── Step 6：啟動 Streamlit + ngrok ────────────────────────
-print("\n🌐 Step 5：啟動 Streamlit + ngrok...")
-
-PORT = 8501
-subprocess.Popen(
-    ['streamlit', 'run', APP_DST,
-     '--server.port', str(PORT),
-     '--server.headless', 'true'],
-    stdout=open('/content/streamlit.log', 'w'),
-    stderr=subprocess.STDOUT
-)
-
-time.sleep(4)  # 等 Streamlit 起來
-
+# ── 取得連結 ───────────────────────────────────────────────
 try:
+    time.sleep(4)
     from google.colab.output import eval_js as _eval_js
-    public_url = _eval_js(f"google.colab.kernel.proxyPort({PORT})")
+    public_url = _eval_js(f"google.colab.kernel.proxyPort(8501)")
     print(f"\n🔗 您的連結：{public_url}")
     print("   ↑ 用同一個 Google 帳號登入的瀏覽器/手機都可以開！\n")
     _tg(chr(10).join([
@@ -114,8 +98,8 @@ try:
         "📱 用同一 Google 帳號的手機瀏覽器打開即可！",
     ]))
     print("📲 Telegram 連結已推播！")
-except Exception as _ng_err:
-    print(f"⚠️  取得連結失敗：{_ng_err}")
+except Exception as _e:
+    print(f"⚠️  取得連結失敗：{_e}")
 
 print("\n💡 可用指令：")
 print("   run_today_analysis()    ← 今日分析")
