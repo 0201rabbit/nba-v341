@@ -163,7 +163,7 @@ print("✅ 套件載入完成")
 # ─────────────────────────────────────────────
 
 # ⚠️ 最重要的開關：測試時 True，正式抓資料時才改 False
-DEV_MODE = True
+DEV_MODE = False
 
 # 時區
 TZ_EST = ZoneInfo("America/New_York")
