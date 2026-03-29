@@ -528,7 +528,11 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                 'ev': ev, 'kelly': calc_kelly(prob, odds), 'odds': odds
             })
 
-    candidates.sort(key=lambda x: x['ev'], reverse=True) if candidates else None
+    # 🌟 核心調整：先看「勝率 (win_prob)」，再看「期望值 (ev)」
+    # 這樣會優先推薦「最容易贏」的選項，而不是「贏了賺最多但很容易輸」的爆冷選項。
+    if candidates:
+        candidates.sort(key=lambda x: (x['win_prob'], x['ev']), reverse=True)
+    
     best = candidates[0] if candidates else None
     ev   = best['ev'] if best else 0
 
