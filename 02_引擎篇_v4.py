@@ -415,13 +415,18 @@ def calc_kelly(win_prob: float, odds: float) -> float:
 # ══════════════════════════════════════════════════════
 # EV 計算參數（可調整）
 # ══════════════════════════════════════════════════════
-EV_MAX            = 0.15   # 修正：EV 上限 15%（超過代表模型或賠率有問題）
+EV_MAX            = 0.15   # EV 上限 15%（超過代表模型或賠率有問題）
 ML_MAX_DIFF       = 0.20   # 獨贏：模型勝率 vs 市場隱含勝率最大差距 20%
 ML_MAX_ODDS       = 600    # 獨贏：賠率超過 +600 不推薦（太冷門，模型不可靠）
 SPREAD_WIN_MAX    = 0.85   # 讓分：勝率超過 85% 通常代表模型偏差，不推薦
-HIGH_CONF_EV      = 0.08   # HIGH 信心最低 EV 門檻
-HIGH_CONF_PROB    = 0.58   # HIGH 信心最低勝率門檻
+HIGH_CONF_EV      = 0.10   # HIGH 信心最低 EV 門檻（提高，更嚴格）
+HIGH_CONF_PROB    = 0.62   # HIGH 信心最低勝率門檻（提高，實際命中率只有 50%）
 TOO_MANY_INJ_CONF = 'MED'  # 傷兵過多時最高只能 MED
+
+# 📊 EV 校準係數（依據真實歷史表現調整）
+# 模型平均 EV=18% 但實際 PnL≈-2.4%，模型對勝率系統性高估
+# 解法：每筆勝率向 50% 萎縮 20%，使預測更保守、更符合現實
+PROB_SHRINK = 0.80  # 勝率萎縮係數（1.0=不校正，0.8=向50%縮20%）
 
 def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                  home_ml: float = None, away_ml: float = None) -> dict:
@@ -450,10 +455,7 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
 
     # ── 讓分 ──
     if spread_line is not None:
-        # 新邏輯：修正目標分差方向 (-15.5 盤口代表要贏 > +15.5)
         target_margin = -spread_line
-        
-        # 盤口補償防呆：若差距 > 10，直接丟棄這場讓分盤
         edge_gap = abs(mc['pred_spread'] - target_margin)
         
         if edge_gap <= 10.0:
@@ -467,7 +469,9 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
             ]:
                 if prob > SPREAD_WIN_MAX:
                     continue
-                ev = min(calc_ev(prob, -110), EV_MAX)
+                # 📊 勝率校準：向 50% 萎縮，修正系統性高估
+                prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
+                ev = min(calc_ev(prob_cal, -110), EV_MAX)
                 
                 # Margin Check：若預測分差連盤口的 60% 都沒到，大幅砍 EV
                 if direction == 'HOME' and mc['pred_spread'] < abs(target_margin) * 0.6:
@@ -478,8 +482,8 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                 if ev > 0:
                     candidates.append({
                         'bet_type': 'SPREAD', 'direction': direction,
-                        'description': desc, 'win_prob': round(prob, 4),
-                        'ev': round(ev, 4), 'kelly': calc_kelly(prob, -110), 'odds': -110
+                        'description': desc, 'win_prob': round(prob_cal, 4),
+                        'ev': round(ev, 4), 'kelly': calc_kelly(prob_cal, -110), 'odds': -110
                     })
 
     # ── 大小分 ──
@@ -493,14 +497,16 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
         ]:
             if prob > SPREAD_WIN_MAX:
                 continue
-            ev = min(calc_ev(prob, -110), EV_MAX)
-            # ⏳ UNDER 門檻提高：實際 UNDER 命中率僅 22.2%，需要更強的信號才推薦
+            # 📊 勝率校準
+            prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
+            ev = min(calc_ev(prob_cal, -110), EV_MAX)
+            # ⏳ UNDER 門檻提高：實際 UNDER 命中率僅 22.2%
             under_ev_min = 0.25 if direction == 'UNDER' else 0.0
             if ev > under_ev_min:
                 candidates.append({
                     'bet_type': 'TOTAL', 'direction': direction,
-                    'description': desc, 'win_prob': round(prob, 4),
-                    'ev': ev, 'kelly': calc_kelly(prob, -110), 'odds': -110
+                    'description': desc, 'win_prob': round(prob_cal, 4),
+                    'ev': ev, 'kelly': calc_kelly(prob_cal, -110), 'odds': -110
                 })
 
     # ── 獨贏 ──
@@ -509,23 +515,20 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
         (mc['away_team'], mc['win_prob_away'], away_ml, 'AWAY'),
     ]:
         if odds is None: continue
-
-        # 修正1：賠率超過 +600 不推薦（太冷門，模型預測不可靠）
         if odds > ML_MAX_ODDS:
             continue
-
-        # 修正1：模型勝率 vs 市場隱含勝率差距超過 20% → 跳過
         market_prob = american_to_prob(odds)
         if abs(prob - market_prob) > ML_MAX_DIFF:
             continue
-
-        ev = min(calc_ev(prob, odds), EV_MAX)  # 修正2：EV 截斷
+        # 📊 勝率校準（ML 也要校正）
+        prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
+        ev = min(calc_ev(prob_cal, odds), EV_MAX)
         if ev > 0:
             candidates.append({
                 'bet_type': 'MONEYLINE', 'direction': direction,
                 'description': f"{team} ML",
-                'win_prob': round(prob, 4),
-                'ev': ev, 'kelly': calc_kelly(prob, odds), 'odds': odds
+                'win_prob': round(prob_cal, 4),
+                'ev': ev, 'kelly': calc_kelly(prob_cal, odds), 'odds': odds
             })
 
     # 🎯 核心排序：勝率 × 期望值 的「綜合分」
