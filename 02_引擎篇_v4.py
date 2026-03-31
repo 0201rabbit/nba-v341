@@ -528,11 +528,13 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                 'ev': ev, 'kelly': calc_kelly(prob, odds), 'odds': odds
             })
 
-    # 🌟 核心調整：先看「勝率 (win_prob)」，再看「期望值 (ev)」
-    # 這樣會優先推薦「最容易贏」的選項，而不是「贏了賺最多但很容易輸」的爆冷選項。
+    # 🎯 核心排序：勝率 × 期望值 的「綜合分」
+    # 原理：只看勝率 → 會選賠率很差的主隊ML（贏但賺不多）
+    #       只看EV   → 會選機率低但賠率好的冷門（賺很多但常輸）
+    #       兩個都要好才能排前面：score = win_prob × ev
     if candidates:
-        candidates.sort(key=lambda x: (x['win_prob'], x['ev']), reverse=True)
-    
+        candidates.sort(key=lambda x: x['win_prob'] * x['ev'], reverse=True)
+
     best = candidates[0] if candidates else None
     ev   = best['ev'] if best else 0
 
