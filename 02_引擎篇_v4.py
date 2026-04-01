@@ -70,41 +70,43 @@ def tn(name: str) -> str:
 # CELL 12：球隊基礎數據（靜態，每 1-2 週手動更新）
 # ─────────────────────────────────────────────
 TEAM_STATS = {
-    # 東區 ── 數據來源：NBAstuffer 2025-26（截至 2026/03/18）
-    "Atlanta Hawks":          {"off_rtg": 115.2, "def_rtg": 114.1, "pace": 101.9, "home_adv": 2.8},
-    "Boston Celtics":         {"off_rtg": 120.4, "def_rtg": 112.6, "pace": 94.8,  "home_adv": 3.5},
-    "Brooklyn Nets":          {"off_rtg": 109.2, "def_rtg": 118.7, "pace": 96.8,  "home_adv": 1.8},
-    "Charlotte Hornets":      {"off_rtg": 118.8, "def_rtg": 114.9, "pace": 97.3,  "home_adv": 2.5},
-    "Chicago Bulls":          {"off_rtg": 113.3, "def_rtg": 117.6, "pace": 101.7, "home_adv": 2.3},
-    "Cleveland Cavaliers":    {"off_rtg": 118.6, "def_rtg": 114.3, "pace": 100.0, "home_adv": 3.2},
-    "Detroit Pistons":        {"off_rtg": 117.5, "def_rtg": 109.7, "pace": 99.4,  "home_adv": 3.5},
-    "Indiana Pacers":         {"off_rtg": 110.0, "def_rtg": 118.8, "pace": 100.8, "home_adv": 2.2},
-    "Miami Heat":             {"off_rtg": 115.8, "def_rtg": 112.8, "pace": 103.7, "home_adv": 3.0},
-    "Milwaukee Bucks":        {"off_rtg": 113.1, "def_rtg": 118.6, "pace": 97.7,  "home_adv": 2.5},
-    "New York Knicks":        {"off_rtg": 117.3, "def_rtg": 112.8, "pace": 97.3,  "home_adv": 3.8},
-    "Orlando Magic":          {"off_rtg": 114.8, "def_rtg": 111.9, "pace": 97.5,  "home_adv": 2.8},
-    "Philadelphia 76ers":     {"off_rtg": 113.8, "def_rtg": 116.2, "pace": 98.5,  "home_adv": 2.5},
-    "Toronto Raptors":        {"off_rtg": 111.5, "def_rtg": 116.8, "pace": 98.3,  "home_adv": 2.2},
-    "Washington Wizards":     {"off_rtg": 107.5, "def_rtg": 121.5, "pace": 99.2,  "home_adv": 1.5},
+    # 數據來源：Basketball-Reference 2025-26（截至 2026/04/02）
+    # 東區
+    "Atlanta Hawks":          {"off_rtg": 115.8, "def_rtg": 113.9, "pace": 101.6, "home_adv": 2.8},
+    "Boston Celtics":         {"off_rtg": 120.0, "def_rtg": 112.6, "pace":  94.7, "home_adv": 3.5},
+    "Brooklyn Nets":          {"off_rtg": 109.0, "def_rtg": 118.7, "pace":  96.9, "home_adv": 1.8},
+    "Charlotte Hornets":      {"off_rtg": 119.2, "def_rtg": 114.4, "pace":  97.0, "home_adv": 2.5},
+    "Chicago Bulls":          {"off_rtg": 113.3, "def_rtg": 117.9, "pace": 102.2, "home_adv": 2.3},
+    "Cleveland Cavaliers":    {"off_rtg": 119.0, "def_rtg": 115.0, "pace":  99.9, "home_adv": 3.2},
+    "Detroit Pistons":        {"off_rtg": 117.5, "def_rtg": 109.6, "pace":  99.3, "home_adv": 3.5},
+    "Indiana Pacers":         {"off_rtg": 110.8, "def_rtg": 119.1, "pace": 100.9, "home_adv": 2.2},
+    "Miami Heat":             {"off_rtg": 115.9, "def_rtg": 113.6, "pace": 103.6, "home_adv": 3.0},
+    "Milwaukee Bucks":        {"off_rtg": 112.6, "def_rtg": 118.8, "pace":  97.8, "home_adv": 2.5},
+    "New York Knicks":        {"off_rtg": 119.5, "def_rtg": 113.3, "pace":  97.1, "home_adv": 3.8},
+    "Orlando Magic":          {"off_rtg": 115.0, "def_rtg": 114.7, "pace":  99.5, "home_adv": 2.8},
+    "Philadelphia 76ers":     {"off_rtg": 115.5, "def_rtg": 115.9, "pace":  99.4, "home_adv": 2.5},
+    "Toronto Raptors":        {"off_rtg": 115.4, "def_rtg": 113.2, "pace":  98.5, "home_adv": 2.2},
+    "Washington Wizards":     {"off_rtg": 110.8, "def_rtg": 122.0, "pace": 101.1, "home_adv": 1.5},
     # 西區
-    "Dallas Mavericks":       {"off_rtg": 110.6, "def_rtg": 115.7, "pace": 101.6, "home_adv": 2.5},
-    "Denver Nuggets":         {"off_rtg": 121.5, "def_rtg": 117.3, "pace": 98.2,  "home_adv": 3.8},
-    "Golden State Warriors":  {"off_rtg": 115.0, "def_rtg": 114.7, "pace": 99.2,  "home_adv": 2.8},
-    "Houston Rockets":        {"off_rtg": 117.5, "def_rtg": 113.2, "pace": 96.0,  "home_adv": 2.8},
-    "LA Clippers":            {"off_rtg": 116.9, "def_rtg": 116.4, "pace": 96.4,  "home_adv": 2.5},
-    "LA Lakers":              {"off_rtg": 118.4, "def_rtg": 116.8, "pace": 98.4,  "home_adv": 2.8},
-    "Los Angeles Clippers":   {"off_rtg": 116.9, "def_rtg": 116.4, "pace": 96.4,  "home_adv": 2.5},
-    "Los Angeles Lakers":     {"off_rtg": 118.4, "def_rtg": 116.8, "pace": 98.4,  "home_adv": 2.8},
-    "Memphis Grizzlies":      {"off_rtg": 114.0, "def_rtg": 116.9, "pace": 101.2, "home_adv": 2.5},
-    "Minnesota Timberwolves": {"off_rtg": 117.4, "def_rtg": 113.7, "pace": 100.6, "home_adv": 3.0},
-    "New Orleans Pelicans":   {"off_rtg": 114.7, "def_rtg": 118.4, "pace": 100.0, "home_adv": 2.3},
-    "Oklahoma City Thunder":  {"off_rtg": 121.8, "def_rtg": 109.5, "pace": 101.5, "home_adv": 3.5},
-    "Phoenix Suns":           {"off_rtg": 115.5, "def_rtg": 116.8, "pace": 100.3, "home_adv": 2.5},
-    "Portland Trail Blazers": {"off_rtg": 112.5, "def_rtg": 117.8, "pace": 100.8, "home_adv": 2.2},
-    "Sacramento Kings":       {"off_rtg": 116.2, "def_rtg": 117.5, "pace": 101.5, "home_adv": 2.5},
-    "San Antonio Spurs":      {"off_rtg": 121.2, "def_rtg": 111.8, "pace": 102.5, "home_adv": 3.2},
-    "Utah Jazz":              {"off_rtg": 110.8, "def_rtg": 119.5, "pace": 98.5,  "home_adv": 2.0},
+    "Dallas Mavericks":       {"off_rtg": 110.5, "def_rtg": 116.0, "pace": 101.6, "home_adv": 2.5},
+    "Denver Nuggets":         {"off_rtg": 122.0, "def_rtg": 117.3, "pace":  98.3, "home_adv": 3.8},
+    "Golden State Warriors":  {"off_rtg": 114.9, "def_rtg": 114.9, "pace":  99.3, "home_adv": 2.8},
+    "Houston Rockets":        {"off_rtg": 117.8, "def_rtg": 113.2, "pace":  95.9, "home_adv": 2.8},
+    "LA Clippers":            {"off_rtg": 117.5, "def_rtg": 116.1, "pace":  96.4, "home_adv": 2.5},
+    "LA Lakers":              {"off_rtg": 118.5, "def_rtg": 116.4, "pace":  98.4, "home_adv": 2.8},
+    "Los Angeles Clippers":   {"off_rtg": 117.5, "def_rtg": 116.1, "pace":  96.4, "home_adv": 2.5},
+    "Los Angeles Lakers":     {"off_rtg": 118.5, "def_rtg": 116.4, "pace":  98.4, "home_adv": 2.8},
+    "Memphis Grizzlies":      {"off_rtg": 113.3, "def_rtg": 117.6, "pace": 101.2, "home_adv": 2.5},
+    "Minnesota Timberwolves": {"off_rtg": 116.7, "def_rtg": 112.9, "pace": 100.5, "home_adv": 3.0},
+    "New Orleans Pelicans":   {"off_rtg": 114.4, "def_rtg": 118.7, "pace":  99.9, "home_adv": 2.3},
+    "Oklahoma City Thunder":  {"off_rtg": 118.4, "def_rtg": 107.5, "pace":  99.2, "home_adv": 3.5},
+    "Phoenix Suns":           {"off_rtg": 115.6, "def_rtg": 113.8, "pace":  97.2, "home_adv": 2.5},
+    "Portland Trail Blazers": {"off_rtg": 114.1, "def_rtg": 114.8, "pace": 100.8, "home_adv": 2.2},
+    "Sacramento Kings":       {"off_rtg": 111.0, "def_rtg": 121.4, "pace":  99.3, "home_adv": 2.5},
+    "San Antonio Spurs":      {"off_rtg": 119.2, "def_rtg": 111.0, "pace": 100.1, "home_adv": 3.2},
+    "Utah Jazz":              {"off_rtg": 114.3, "def_rtg": 122.2, "pace": 101.8, "home_adv": 2.0},
 }
+
 
 # 聯盟平均（找不到球隊時使用）
 LEAGUE_AVG = {"off_rtg": 114.0, "def_rtg": 114.0, "pace": 98.5, "home_adv": 2.5}
@@ -139,36 +141,86 @@ CORE_MISSING_MIN_MULTIPLIER = 0.4
 # 邊際遞減係數（第1名全扣，第2名扣80%，第3名扣50%，第4名以後扣20%）
 MARGINAL_DECAY = [1.0, 0.8, 0.5, 0.2]
 
+# 《改進 1》：球員 USG%（使用率）表—— 2025-26賽季
+# USG% = 該球員上場時占用隊伍进攻回合的比例
+# 依據 USG% 發尚罱居影響值的倍率（高 USG = 高影響）
+PLAYER_USG = {
+    # 超級星 (USG > 30%)
+    "LeBron James":         30.2, "Giannis Antetokounmpo": 33.1,
+    "Luka Doncic":          35.2, "Kevin Durant":           29.2,
+    "Stephen Curry":        27.8, "Nikola Jokic":           29.0,
+    "Joel Embiid":          33.5, "Jayson Tatum":           30.8,
+    "Damian Lillard":       28.6, "Zion Williamson":        32.0,
+    "Anthony Davis":        27.5, "Devin Booker":           30.2,
+    "Donovan Mitchell":     30.0, "Shai Gilgeous-Alexander": 33.2,
+    "Karl-Anthony Towns":   27.8, "Trae Young":             31.5,
+    "James Harden":         26.5, "Jimmy Butler":           24.5,
+    # 全明星 (USG 22-30%)
+    "Jaylen Brown":         26.5, "Bam Adebayo":            22.0,
+    "Tyrese Haliburton":    27.5, "Tyler Herro":            27.0,
+    "Pascal Siakam":        24.5, "Darius Garland":         25.2,
+    "Evan Mobley":          20.5, "Scottie Barnes":         24.8,
+    "Paolo Banchero":       28.5, "Franz Wagner":           26.0,
+    "Cade Cunningham":      28.5, "Jalen Brunson":          28.0,
+    "OG Anunoby":           19.5, "De'Aaron Fox":           26.5,
+    "Domantas Sabonis":     24.0, "Jalen Green":            27.5,
+    "Anthony Edwards":      30.5, "Rudy Gobert":            17.5,
+    "Lauri Markkanen":      24.5, "Victor Wembanyama":       29.5,
+    "Brandon Ingram":       26.0, "CJ McCollum":            23.5,
+    "Julius Randle":        25.5, "Jaren Jackson Jr":       21.5,
+    "Ja Morant":            27.5, "Desmond Bane":           22.0,
+    "Mikal Bridges":        21.5, "Khris Middleton":        23.0,
+    "Kyrie Irving":         26.5, "Paul George":            23.5,
+    "Norman Powell":        23.0, "Bradley Beal":           24.5,
+    # 先發 (USG 18-22%)
+    "Bogdan Bogdanovic":    20.5, "Tobias Harris":          20.0,
+    "Brook Lopez":          18.5, "Robert Williams":        15.0,
+    "Kristaps Porzingis":   22.0, "Al Horford":             15.5,
+    "Marcus Smart":         17.5, "Jrue Holiday":           15.5,
+}
+
+# 依 USG% 計算影響倍率：USG=20%為基準(1.0)，每多 5% 加 25% 影響
+def usg_multiplier(usg: float) -> float:
+    return max(0.6, min(2.0, 1.0 + (usg - 20.0) / 20.0))
+
+# 《改進 2》：背靠背（B2B）疲勞懲调
+# NBA 研究：B2B 的區或需讓 on avg 覗 1–2分錢
+B2B_HOME_OFF  = -2.0   # 主隊 B2B 時進攻效率下調
+B2B_HOME_DEF  = +1.5   # 主隊 B2B 時防守效率下調
+B2B_AWAY_OFF  = -3.0   # 客隊 B2B 的擁個更難（還要移動）
+B2B_AWAY_DEF  = +2.0
+
 def parse_injuries(injury_list: list) -> dict:
     """
-    邊際遞減版傷兵計算：
-    - 先計算每位球員的「基礎影響值」（role × status_multiplier）
-    - 按影響力由大到小排序
-    - 依序套用遞減係數（100% / 80% / 50% / 20%）
-    - 避免多名球員缺陣時扣分疊加造成預測失真
+    還际遞減版傷兵計算（加入 USG% 校正）
     """
     if not injury_list:
         return {'off_impact': 0, 'def_impact': 0, 'core_missing': 0,
                 'too_many_injuries': False, 'injury_count': 0}
 
-    # 先計算每位球員的原始影響值
     raw_impacts = []
     for p in injury_list:
         role       = p.get('role', 'rotation')
         status     = p.get('status', 'out').lower()
+        name       = p.get('name', '?')
         impact     = INJURY_IMPACT.get(role, INJURY_IMPACT['rotation'])
         multiplier = STATUS_MULTIPLIER.get(status, 1.0)
-        raw_off = impact['off'] * multiplier
-        raw_def = impact['def'] * multiplier
+
+        # USG% 加權：依球員發尚罱居動正影響大小
+        usg = PLAYER_USG.get(name)
+        usg_mult = usg_multiplier(usg) if usg else 1.0
+
+        raw_off = impact['off'] * multiplier * usg_mult
+        raw_def = impact['def'] * multiplier * usg_mult
         is_core = impact['core'] and multiplier >= CORE_MISSING_MIN_MULTIPLIER
         raw_impacts.append({
-            'name': p.get('name', '?'), 'role': role, 'status': status,
+            'name': name, 'role': role, 'status': status,
             'raw_off': raw_off, 'raw_def': raw_def,
-            'severity': abs(raw_off),  # 用進攻影響絕對值排序
-            'is_core': is_core
+            'severity': abs(raw_off),
+            'is_core': is_core,
+            'usg': usg
         })
 
-    # 由大到小排序
     raw_impacts.sort(key=lambda x: x['severity'], reverse=True)
 
     total_off = total_def = 0.0
@@ -182,13 +234,13 @@ def parse_injuries(injury_list: list) -> dict:
         total_def += def_hit
         if p['is_core']:
             core_missing += 1
+        usg_tag = f" USG={p['usg']:.0f}%" if p['usg'] else ""
         decay_str = f"{int(decay*100)}%"
-        print(f"   🏥 {p['name']} ({p['role']}/{p['status']})"
+        print(f"   🏥 {p['name']} ({p['role']}/{p['status']}{usg_tag})"
               f"  進攻:{off_hit:+.1f}  防守:{def_hit:+.1f}"
               f"  [遞減{decay_str}]"
               f"{'  ⚠️核心' if p['is_core'] else ''}")
 
-    # ≥4名傷兵觸發可信度警示
     too_many = len(injury_list) >= 4
     if too_many:
         print(f"   ⚠️  傷兵人數過多（{len(injury_list)}人），預測可信度下降")
@@ -214,7 +266,11 @@ def run_monte_carlo(
     n_simulations: int = 10000,
     custom_params: dict = None,
     verbose: bool = True,
-    spread_line: float = None,   # 盤口讓分，用於錨定預測分差
+    spread_line: float = None,
+    b2b_home: bool = False,        # 主隊是否背靠背
+    b2b_away: bool = False,        # 客隊是否背靠背
+    rest_days_home: int = 1,       # 主隊距上次出賽天數（1=正常，3+=長休）
+    rest_days_away: int = 1,       # 客隊距上次出賽天數
 ) -> dict:
     """
     ✅ 修正版得分公式：
@@ -281,7 +337,17 @@ def run_monte_carlo(
         if verbose: print(f"\n  💥 崩潰模式！{tn(away_team)} 核心缺陣 {away_inj['core_missing']} 人 → σ={sigma}")
 
     # ✅ 修正後的得分公式
-    LEAGUE_DEF_AVG = 114.0
+    # 2025-26賽季平均得分上升，更新為116.0（公式分母）
+    LEAGUE_DEF_AVG = 116.0
+    # 季未動機：確定 tanking 或保休的隊伍進攻效率打折
+    TANKING_TEAMS = {
+        'Washington Wizards', 'Utah Jazz', 'Brooklyn Nets',
+        'Portland Trail Blazers', 'New Orleans Pelicans',
+    }
+    TANKING_OFF_PENALTY = -2.0   # 確定 tanking 的隊伍進攻效率下調
+    # 長休最（rest≥3天）的加成
+    REST_BONUS_OFF = +1.5
+    REST_BONUS_DEF = -1.0       # 防守允許率下降代表防守變好
     pace_used = (home_stats['pace'] + away_stats['pace']) / 2
 
     # 加入傷兵影響後的效率值
@@ -289,6 +355,40 @@ def run_monte_carlo(
     home_def_adj = home_stats['def_rtg'] + home_inj['def_impact']
     away_off_adj = away_stats['off_rtg'] + away_inj['off_impact']
     away_def_adj = away_stats['def_rtg'] + away_inj['def_impact']
+
+    # 《改進》: 背靠背疲勞懲調整
+    if b2b_home:
+        home_off_adj += B2B_HOME_OFF
+        home_def_adj += B2B_HOME_DEF
+        if verbose:
+            print(f"   😴 {tn(home_team)} 背靠背：進攻{B2B_HOME_OFF:+.1f}  防守允許率{B2B_HOME_DEF:+.1f}")
+    if b2b_away:
+        away_off_adj += B2B_AWAY_OFF
+        away_def_adj += B2B_AWAY_DEF
+        if verbose:
+            print(f"   😴 {tn(away_team)} 背靠背(客隊更難)：進攻{B2B_AWAY_OFF:+.1f}  防守允許率{B2B_AWAY_DEF:+.1f}")
+
+    # 《改進》: 長休加成（3天+休息）
+    if rest_days_home >= 3:
+        home_off_adj += REST_BONUS_OFF
+        home_def_adj += REST_BONUS_DEF
+        if verbose:
+            print(f"   💪 {tn(home_team)} 長休{rest_days_home}天：進攻{REST_BONUS_OFF:+.1f}  防守{REST_BONUS_DEF:+.1f}")
+    if rest_days_away >= 3:
+        away_off_adj += REST_BONUS_OFF
+        away_def_adj += REST_BONUS_DEF
+        if verbose:
+            print(f"   💪 {tn(away_team)} 長休{rest_days_away}天：進攻{REST_BONUS_OFF:+.1f}  防守{REST_BONUS_DEF:+.1f}")
+
+    # 《改進》: 季未 tanking 懲调
+    if home_team in TANKING_TEAMS:
+        home_off_adj += TANKING_OFF_PENALTY
+        if verbose:
+            print(f"   📩 {tn(home_team)} 確認 tanking 中：進攻{TANKING_OFF_PENALTY:+.1f}")
+    if away_team in TANKING_TEAMS:
+        away_off_adj += TANKING_OFF_PENALTY
+        if verbose:
+            print(f"   📩 {tn(away_team)} 確認 tanking 中：進攻{TANKING_OFF_PENALTY:+.1f}")
 
     # 預測得分（業界標準公式）
     # 主隊得分 = 主隊進攻效率 × 客隊防守允許率 / 聯盟均 × pace調整
@@ -415,18 +515,19 @@ def calc_kelly(win_prob: float, odds: float) -> float:
 # ══════════════════════════════════════════════════════
 # EV 計算參數（可調整）
 # ══════════════════════════════════════════════════════
-EV_MAX            = 0.15   # EV 上限 15%（超過代表模型或賠率有問題）
-ML_MAX_DIFF       = 0.20   # 獨贏：模型勝率 vs 市場隱含勝率最大差距 20%
-ML_MAX_ODDS       = 600    # 獨贏：賠率超過 +600 不推薦（太冷門，模型不可靠）
-SPREAD_WIN_MAX    = 0.85   # 讓分：勝率超過 85% 通常代表模型偏差，不推薦
-HIGH_CONF_EV      = 0.10   # HIGH 信心最低 EV 門檻（提高，更嚴格）
-HIGH_CONF_PROB    = 0.62   # HIGH 信心最低勝率門檻（提高，實際命中率只有 50%）
+EV_MAX            = 0.15   # EV 上限 15%
+ML_MAX_DIFF       = 0.20   # 獨贏：模型勝率 vs 市場限制 20%
+ML_MAX_ODDS       = 600    # 獨贏：賠率 > +600 不推薦
+SPREAD_WIN_MAX    = 0.85   # 讓分：勝率 > 85% 不推薦
+HIGH_CONF_EV      = 0.10   # HIGH 最低 EV
+HIGH_CONF_PROB    = 0.65   # HIGH 最低勝率（提高：-8.43% PnL 代表需更嚴格賠規）
 TOO_MANY_INJ_CONF = 'MED'  # 傷兵過多時最高只能 MED
 
-# 📊 EV 校準係數（依據真實歷史表現調整）
-# 模型平均 EV=18% 但實際 PnL≈-2.4%，模型對勝率系統性高估
-# 解法：每筆勝率向 50% 萎縮 20%，使預測更保守、更符合現實
-PROB_SHRINK = 0.80  # 勝率萎縮係數（1.0=不校正，0.8=向50%縮20%）
+# 管 EV 校準係數
+# 實際 PnL=-8.43%→實際命中率≈8%，模型預期 62%，需大幅萎縮
+PROB_SHRINK  = 0.65   # 勝率向 50% 萎縮 35%（之前 0.80 不夠）
+MIN_OVER_EV  = 0.10   # OVER 最低 EV 門檻（命中率只 47.4%，需進一步篩選）
+MIN_UNDER_EV = 0.35   # UNDER 最低 EV 門檻（命中率只 22.2%，更嚴格限制）
 
 def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                  home_ml: float = None, away_ml: float = None) -> dict:
@@ -500,9 +601,9 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
             # 📊 勝率校準
             prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
             ev = min(calc_ev(prob_cal, -110), EV_MAX)
-            # ⏳ UNDER 門檻提高：實際 UNDER 命中率僅 22.2%
-            under_ev_min = 0.25 if direction == 'UNDER' else 0.0
-            if ev > under_ev_min:
+            # ‘‘ OVER/UNDER 分別門檻（從歷史命中率調整）
+            ev_min = MIN_UNDER_EV if direction == 'UNDER' else MIN_OVER_EV
+            if ev > ev_min:
                 candidates.append({
                     'bet_type': 'TOTAL', 'direction': direction,
                     'description': desc, 'win_prob': round(prob_cal, 4),
