@@ -337,8 +337,8 @@ def run_monte_carlo(
         if verbose: print(f"\n  💥 崩潰模式！{tn(away_team)} 核心缺陣 {away_inj['core_missing']} 人 → σ={sigma}")
 
     # ✅ 修正後的得分公式
-    # 2025-26賽季平均得分上升，更新為116.0（公式分母）
-    LEAGUE_DEF_AVG = 116.0
+    # 請勿調高 LEAGUE_DEF_AVG：分母增大會讓預測得分變低，与我們的+6賽季校正相逆
+    LEAGUE_DEF_AVG = 114.0
     # 季未動機：確定 tanking 或保休的隊伍進攻效率打折
     TANKING_TEAMS = {
         'Washington Wizards', 'Utah Jazz', 'Brooklyn Nets',
@@ -397,8 +397,9 @@ def run_monte_carlo(
 
     # ✅ 盤口錨定：將模型預測分差往市場盤口方向修正
     # 市場盤口是千萬資金定出來的，不能完全忽略
-    # MARKET_WEIGHT=0.35 代表盤口佔 35%，模型佔 65%
-    MARKET_WEIGHT = 0.35
+    # MARKET_WEIGHT=0.45：命中率低於50%，更信任市場盤口（由龐大資金定出）
+    MARKET_WEIGHT = 0.45
+
     if spread_line is not None:
         model_spread   = pred_home_base - pred_away_base
         market_spread  = -spread_line  # 盤口讓分轉換（-6.5 代表主隊讓 6.5，即預期主贏 6.5）
