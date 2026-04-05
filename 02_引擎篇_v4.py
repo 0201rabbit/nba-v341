@@ -526,9 +526,12 @@ TOO_MANY_INJ_CONF = 'MED'  # 傷兵過多時最高只能 MED
 
 # 管 EV 校準係數
 # 實際 PnL=-8.43%→實際命中率≈8%，模型預期 62%，需大幅萎縮
-PROB_SHRINK  = 0.65   # 勝率向 50% 萎縮 35%（之前 0.80 不夠）
-MIN_OVER_EV  = 0.10   # OVER 最低 EV 門檻（命中率只 47.4%，需進一步篩選）
-MIN_UNDER_EV = 0.35   # UNDER 最低 EV 門檻（命中率只 22.2%，更嚴格限制）
+PROB_SHRINK  = 0.65   # 勝率向 50% 萎縮 35%
+# 历史命中率：OVER=47.4%，UNDER=22.2%，兩者都不賠錢
+# 直接移除大小分推薦，改為專注從讓分盤
+# （單軚分檢量如有非常大EV才推）
+MIN_OVER_EV  = 0.40   # 实際不可能解鎖（-110賠率下最高約15%）
+MIN_UNDER_EV = 0.50   # 实際不可能解鎖
 
 def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                  home_ml: float = None, away_ml: float = None) -> dict:
@@ -633,12 +636,15 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                 'ev': ev, 'kelly': calc_kelly(prob_cal, odds), 'odds': odds
             })
 
-    # 🎯 核心排序：勝率 × 期望值 的「綜合分」
-    # 原理：只看勝率 → 會選賠率很差的主隊ML（贏但賺不多）
-    #       只看EV   → 會選機率低但賠率好的冷門（賺很多但常輸）
-    #       兩個都要好才能排前面：score = win_prob × ev
+    # 🎯 核心排序：以「勝率」為唯一優先（先贏再考慮賺多少）
+    # SPREAD 盤的勝率更可靠，給予相對於 ML 的小幅加成
     if candidates:
-        candidates.sort(key=lambda x: x['win_prob'] * x['ev'], reverse=True)
+        def sort_key(x):
+            prob = x['win_prob']
+            # SPREAD 盤優先（等勝率時，讓分盤優先於獨贏）
+            type_bonus = 0.01 if x['bet_type'] == 'SPREAD' else 0.0
+            return prob + type_bonus
+        candidates.sort(key=sort_key, reverse=True)
 
     best = candidates[0] if candidates else None
     ev   = best['ev'] if best else 0
