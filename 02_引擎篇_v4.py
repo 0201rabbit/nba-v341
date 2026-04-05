@@ -710,8 +710,35 @@ def analyze_game(
     print(f"   日期：{game_date_est}  盤口：{spread_line:+.1f}  大小：{total_line}")
     print(f"{'='*55}")
 
+    # 🔄 自動偵測背靠背（B2B）
+    # 查昨日是否有該隊的比賽記錄
+    b2b_home = b2b_away = False
+    if game_date_est:
+        try:
+            import sqlite3 as _sqlite3
+            from datetime import datetime as _dt, timedelta as _td
+            _yesterday = (_dt.strptime(game_date_est, '%Y-%m-%d') - _td(days=1)).strftime('%Y-%m-%d')
+            _conn = _sqlite3.connect(DB_PATH)
+            _played = set()
+            for row in _conn.execute(
+                "SELECT home_team, away_team FROM predictions WHERE game_date_est = ?",
+                (_yesterday,)
+            ):
+                _played.add(row[0])
+                _played.add(row[1])
+            _conn.close()
+            b2b_home = home_team in _played
+            b2b_away = away_team in _played
+            if b2b_home:
+                print(f"   😴 自動偵測：{tn(home_team)} 昨日有出賽（背靠背）")
+            if b2b_away:
+                print(f"   😴 自動偵測：{tn(away_team)} 昨日有出賽（背靠背）")
+        except Exception:
+            pass  # 偵測失敗時靜默跳過，不影響主流程
+
     mc       = run_monte_carlo(home_team, away_team, home_injuries, away_injuries, n_simulations,
-                             spread_line=spread_line)
+                             spread_line=spread_line, b2b_home=b2b_home, b2b_away=b2b_away)
+
     bet_eval = evaluate_bet(mc, spread_line, total_line, home_ml, away_ml)
     best     = bet_eval['best_bet']
 
