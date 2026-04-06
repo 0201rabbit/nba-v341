@@ -130,13 +130,66 @@ def run_morning_push(target_date: str = TARGET_DATE):
     print(f"📡 區塊 B：早上推播 — {target_date}")
     print(f"{'─'*55}")
 
-    # 抓早上盤口（比對晚上是否有異動）
+    # ── Step 1：抓早上盤口快照 ──
     print("📊 抓取早上盤口快照...")
-    shield.fetch_odds(target_date, trigger='morning_check')
+    morning_odds = shield.fetch_odds(target_date, trigger='morning_check')
+    morning_odds_map = {o['game_id']: o for o in morning_odds}
 
-    # 執行完整早上推播流程
+    # ── Step 2：重新抓最新傷兵名單 ──
+    print("\n🏥 重新抓取最新傷兵名單（比賽前最終確認）...")
+    INJURY_DATA_MORNING = fetch_injuries_nba()
+    save_injuries_to_db(INJURY_DATA_MORNING, target_date)
+
+    # ── Step 3：偵測盤口異動，觸發重新分析 ──
+    print("\n🔍 比對盤口異動...")
+    line_alerts = detect_line_moves(target_date)
+    reanalyzed = 0
+
+    for alert in line_alerts:
+        if not alert.get('has_alert'):
+            continue  # 未達門檻，跳過
+
+        gid = alert['game_id']
+        if gid not in morning_odds_map:
+            continue
+
+        odds = morning_odds_map[gid]
+        home = odds['home_team']
+        away = odds['away_team']
+        home_inj = INJURY_DATA_MORNING.get(home, [])
+        away_inj = INJURY_DATA_MORNING.get(away, [])
+
+        print(f"\n  🔄 {alert['matchup']}")
+        print(f"     讓分：{alert['spread_eve']} → {alert['spread_morn']}（移動 {alert['spread_move']:.1f}）")
+        print(f"     → 使用最新盤口 + 最新傷兵重新分析...")
+
+        # 重新跑蒙地卡羅，更新 DB
+        analyze_game(
+            game_id        = gid,
+            home_team      = home,
+            away_team      = away,
+            spread_line    = odds['spread_line'] or 0,
+            total_line     = odds['total_line'] or 220,
+            home_ml        = odds.get('home_ml'),
+            away_ml        = odds.get('away_ml'),
+            home_injuries  = home_inj,
+            away_injuries  = away_inj,
+            game_date_est  = target_date,
+            trigger_session= 'morning',
+            save_to_db     = True,
+        )
+        reanalyzed += 1
+
+    if reanalyzed > 0:
+        print(f"\n✅ 已重新分析 {reanalyzed} 場（盤口異動 ≥ {LINE_MOVE_ALERT} 分）")
+    else:
+        print("  ✅ 所有盤口穩定，無需重新分析")
+
+    # ── Step 4：執行早上推播 ──
     run_morning_broadcast(target_date)
     print("✅ 早上推播完成")
+
+
 
 
 # ══════════════════════════════════════════════
