@@ -139,32 +139,22 @@ def fetch_actual_scores(game_date_est: str) -> list:
 
             results = []
             for g in games:
-                # 過濾指定日期（用 gameCode 的日期前綴判斷）
+                # 過濾指定日期
                 game_code = g.get('gameCode', '')
                 if not game_code.startswith(target_prefix):
                     continue
-
-                # 只取已結束的比賽
                 if g.get('gameStatus') != 3:
                     continue
-
                 home = g.get('homeTeam', {})
                 away = g.get('awayTeam', {})
-
-                home_name = _normalize_nba_team(
-                    f"{home.get('teamCity','')} {home.get('teamName','')}".strip())
-                away_name = _normalize_nba_team(
-                    f"{away.get('teamCity','')} {away.get('teamName','')}".strip())
-
                 results.append({
-                    'home_team':  home_name,
-                    'away_team':  away_name,
+                    'home_team':  _normalize_nba_team(f"{home.get('teamCity','')} {home.get('teamName','')}".strip()),
+                    'away_team':  _normalize_nba_team(f"{away.get('teamCity','')} {away.get('teamName','')}".strip()),
                     'home_score': home.get('score', 0),
                     'away_score': away.get('score', 0),
                     'status':     g.get('gameStatusText', 'Final'),
                     'game_id':    g.get('gameId', ''),
                 })
-
             if results:
                 print(f"   ✅ NBA 官方取得 {len(results)} 場結果（{game_date_est}）")
                 return results
@@ -173,8 +163,130 @@ def fetch_actual_scores(game_date_est: str) -> list:
             print(f"   ⚠️  端點失敗：{e}")
             continue
 
+    # ── 備用方案 1：stats.nba.com scoreboardv2（支援歷史任意日期）──
+    try:
+        # NBA stats API 需要特定請求頭才能正常存取
+        nba_headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Host': 'stats.nba.com',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.nba.com/',
+            'x-nba-stats-origin': 'stats',
+            'x-nba-stats-token': 'true',
+            'Origin': 'https://www.nba.com',
+        }
+        # 格式：MM/DD/YYYY
+        from datetime import datetime as _dt2
+        d = _dt2.strptime(game_date_est, '%Y-%m-%d')
+        game_date_fmt = d.strftime('%m/%d/%Y')
+        stats_url = (
+            f"https://stats.nba.com/stats/scoreboardv2"
+            f"?DayOffset=0&GameDate={game_date_fmt}&LeagueID=00"
+        )
+        resp = requests.get(stats_url, headers=nba_headers, timeout=20)
+        if resp.status_code == 200:
+            result_sets = resp.json().get('resultSets', [])
+            # LineScore 包含每隊得分
+            line_score = next((rs for rs in result_sets if rs['name'] == 'LineScore'), None)
+            game_header = next((rs for rs in result_sets if rs['name'] == 'GameHeader'), None)
+            if line_score and game_header:
+                ls_hdrs = line_score['headers']
+                gh_hdrs = game_header['headers']
+                # 建立 game_id → status 對照
+                status_map = {}
+                for row in game_header['rowSet']:
+                    r = dict(zip(gh_hdrs, row))
+                    status_map[r['GAME_ID']] = r.get('GAME_STATUS_TEXT', '')
+                # 每場比賽有兩筆 LineScore（主客各一）
+                games_data = {}
+                for row in line_score['rowSet']:
+                    r = dict(zip(ls_hdrs, row))
+                    gid = r['GAME_ID']
+                    if gid not in games_data:
+                        games_data[gid] = []
+                    games_data[gid].append(r)
+                results = []
+                for gid, teams in games_data.items():
+                    if len(teams) < 2:
+                        continue
+                    status = status_map.get(gid, '')
+                    if 'Final' not in status:
+                        continue
+                    # teams[0]=away, teams[1]=home（NBA API 慣例）
+                    away_r, home_r = teams[0], teams[1]
+                    results.append({
+                        'home_team':  _normalize_nba_team(f"{home_r.get('TEAM_CITY_NAME','')} {home_r.get('TEAM_NICKNAME','')}".strip()),
+                        'away_team':  _normalize_nba_team(f"{away_r.get('TEAM_CITY_NAME','')} {away_r.get('TEAM_NICKNAME','')}".strip()),
+                        'home_score': int(home_r.get('PTS', 0) or 0),
+                        'away_score': int(away_r.get('PTS', 0) or 0),
+                        'status':     'Final',
+                        'game_id':    gid,
+                    })
+                if results:
+                    print(f"   ✅ stats.nba.com 取得 {len(results)} 場結果（{game_date_est}）")
+                    return results
+    except Exception as e:
+        print(f"   ⚠️  stats.nba.com 失敗：{e}")
+
     print(f"   ❌ 無法取得 {game_date_est} 的比賽結果")
+    print(f"   💡 可使用 settle_games_manual('{game_date_est}', scores) 手動補填")
     return []
+
+
+def settle_games_manual(game_date_est: str, scores: dict):
+    """
+    手動補填比賽結果並結算
+    scores 格式：{('主隊名', '客隊名'): (主隊分, 客隊分), ...}
+
+    範例：
+    settle_games_manual('2026-04-07', {
+        ('Boston Celtics', 'Miami Heat'): (112, 98),
+        ('Denver Nuggets', 'LA Lakers'): (118, 105),
+    })
+    """
+    actual_scores = []
+    for (home, away), (home_score, away_score) in scores.items():
+        actual_scores.append({
+            'home_team':  home,
+            'away_team':  away,
+            'home_score': home_score,
+            'away_score': away_score,
+            'status':     'Final',
+            'game_id':    f"manual_{home[:3]}_{away[:3]}",
+        })
+
+    conn = sqlite3.connect(DB_PATH)
+    preds = conn.execute('''
+        SELECT game_id, home_team, away_team, recommended_bet
+        FROM predictions
+        WHERE game_date_est = ?
+        GROUP BY home_team, away_team
+        HAVING created_at_est = MAX(created_at_est)
+    ''', (game_date_est,)).fetchall()
+    conn.close()
+
+    graded = 0
+    for pred in preds:
+        game_id, home, away, rec = pred
+        match = next(
+            (s for s in actual_scores
+             if _team_match(s['home_team'], home) and _team_match(s['away_team'], away)),
+            None
+        )
+        if match:
+            grade_result(
+                game_id=game_id,
+                actual_score_home=match['home_score'],
+                actual_score_away=match['away_score'],
+                data_source='manual'
+            )
+            graded += 1
+            print(f"   ✅ {home} {match['home_score']} vs {away} {match['away_score']}")
+
+    print(f"\n✅ 手動結算完成：{graded}/{len(preds)} 場")
+
 
 
 def _normalize_nba_team(name: str) -> str:
