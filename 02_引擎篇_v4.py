@@ -111,7 +111,53 @@ TEAM_STATS = {
 # 聯盟平均（找不到球隊時使用）
 LEAGUE_AVG = {"off_rtg": 114.0, "def_rtg": 114.0, "pace": 98.5, "home_adv": 2.5}
 
-print(f"✅ 球隊基礎數據載入完成：{len(TEAM_STATS)} 支球隊")
+# ─────────────────────────────────────────────
+# 近10場表現數據（每週更新，解決「猜到贏家猜不到分差」問題）
+# 數據來源：Basketball-Reference（截至 2026/04/07）
+# 更新方式：上 basketball-reference.com → Team Ratings → Last 10 Games
+# ─────────────────────────────────────────────
+TEAM_FORM = {
+    # 東區
+    "Atlanta Hawks":          {"off_rtg": 119.3, "def_rtg": 109.6},
+    "Boston Celtics":         {"off_rtg": 121.3, "def_rtg": 110.8},
+    "Brooklyn Nets":          {"off_rtg": 104.0, "def_rtg": 117.5},
+    "Charlotte Hornets":      {"off_rtg": 126.2, "def_rtg": 109.3},
+    "Chicago Bulls":          {"off_rtg": 109.8, "def_rtg": 124.7},
+    "Cleveland Cavaliers":    {"off_rtg": 122.5, "def_rtg": 117.8},
+    "Detroit Pistons":        {"off_rtg": 115.5, "def_rtg": 107.3},
+    "Indiana Pacers":         {"off_rtg": 120.7, "def_rtg": 125.1},
+    "Miami Heat":             {"off_rtg": 120.1, "def_rtg": 127.5},
+    "Milwaukee Bucks":        {"off_rtg": 109.2, "def_rtg": 122.8},
+    "New York Knicks":        {"off_rtg": 123.1, "def_rtg": 115.3},
+    "Orlando Magic":          {"off_rtg": 113.8, "def_rtg": 118.2},
+    "Philadelphia 76ers":     {"off_rtg": 119.9, "def_rtg": 117.3},
+    "Toronto Raptors":        {"off_rtg": 116.9, "def_rtg": 114.4},
+    "Washington Wizards":     {"off_rtg": 111.8, "def_rtg": 126.6},
+    # 西區
+    "Dallas Mavericks":       {"off_rtg": 111.1, "def_rtg": 120.2},
+    "Denver Nuggets":         {"off_rtg": 125.3, "def_rtg": 118.2},
+    "Golden State Warriors":  {"off_rtg": 110.5, "def_rtg": 118.8},
+    "Houston Rockets":        {"off_rtg": 123.2, "def_rtg": 111.1},
+    "LA Clippers":            {"off_rtg": 119.6, "def_rtg": 113.4},
+    "LA Lakers":              {"off_rtg": 119.5, "def_rtg": 118.0},
+    "Los Angeles Clippers":   {"off_rtg": 119.6, "def_rtg": 113.4},
+    "Los Angeles Lakers":     {"off_rtg": 119.5, "def_rtg": 118.0},
+    "Memphis Grizzlies":      {"off_rtg": 108.7, "def_rtg": 128.3},
+    "Minnesota Timberwolves": {"off_rtg": 108.6, "def_rtg": 105.1},
+    "New Orleans Pelicans":   {"off_rtg": 111.1, "def_rtg": 118.3},
+    "Oklahoma City Thunder":  {"off_rtg": 122.3, "def_rtg": 104.5},
+    "Phoenix Suns":           {"off_rtg": 116.1, "def_rtg": 112.2},
+    "Portland Trail Blazers": {"off_rtg": 117.7, "def_rtg": 107.2},
+    "Sacramento Kings":       {"off_rtg": 113.4, "def_rtg": 127.6},
+    "San Antonio Spurs":      {"off_rtg": 123.4, "def_rtg": 107.8},
+    "Utah Jazz":              {"off_rtg": 110.4, "def_rtg": 124.5},
+}
+# 近期數據佔比 40%，賽季數據佔比 60%
+# 調高代表更信任近期狀態，調低代表更信任長期穩定
+FORM_WEIGHT = 0.40
+
+print(f"✅ 球隊基礎數據載入完成：{len(TEAM_STATS)} 支球隊（含近10場加權）")
+
 
 
 # ─────────────────────────────────────────────
@@ -309,6 +355,29 @@ def run_monte_carlo(
     if away_team not in TEAM_STATS and verbose:
         print(f"   ⚠️  {away_team} 不在資料庫，使用聯盟平均")
 
+    # 《近10場加權》：season_avg × 60% + recent_10 × 40%
+    # 解決「猜到贏家但猜不到分差」—— 熱門狀態的隊伍攻防效率更準確
+    def blend_form(team_name: str, stats: dict) -> dict:
+        form = TEAM_FORM.get(team_name)
+        if not form:
+            return stats
+        blended = dict(stats)  # 保留 pace, home_adv 等不變
+        blended['off_rtg'] = stats['off_rtg'] * (1 - FORM_WEIGHT) + form['off_rtg'] * FORM_WEIGHT
+        blended['def_rtg'] = stats['def_rtg'] * (1 - FORM_WEIGHT) + form['def_rtg'] * FORM_WEIGHT
+        return blended
+
+    home_stats = blend_form(home_team, home_stats)
+    away_stats = blend_form(away_team, away_stats)
+    if verbose:
+        hf = TEAM_FORM.get(home_team)
+        af = TEAM_FORM.get(away_team)
+        if hf:
+            print(f"   📈 {tn(home_team)} 近10場加權：攻{hf['off_rtg']:.1f}→{home_stats['off_rtg']:.1f}  守{hf['def_rtg']:.1f}→{home_stats['def_rtg']:.1f}")
+        if af:
+            print(f"   📈 {tn(away_team)} 近10場加權：攻{af['off_rtg']:.1f}→{away_stats['off_rtg']:.1f}  守{af['def_rtg']:.1f}→{away_stats['def_rtg']:.1f}")
+
+
+
     # 解析傷兵
     if verbose: print(f"\n  📋 {tn(home_team)} 傷兵：")
     home_inj = parse_injuries(home_injuries) if home_injuries else {'off_impact':0,'def_impact':0,'core_missing':0}
@@ -395,21 +464,35 @@ def run_monte_carlo(
     pred_home_base = (home_off_adj * away_def_adj) / LEAGUE_DEF_AVG * pace_used / 100
     pred_away_base = (away_off_adj * home_def_adj) / LEAGUE_DEF_AVG * pace_used / 100
 
-    # ✅ 盤口錨定：將模型預測分差往市場盤口方向修正
-    # 市場盤口是千萬資金定出來的，不能完全忽略
-    # MARKET_WEIGHT=0.45：命中率低於50%，更信任市場盤口（由龐大資金定出）
-    MARKET_WEIGHT = 0.45
+    # ✅ 盤口錨定：動態調整市場盤口權重
+    # 當模型與市場「方向一致」（都認為同一隊贏）→ 相信市場的分差幅度更準確
+    # 當模型與市場「方向相反」（模型認為A贏，市場認為B贏）→ 減少市場影響
 
     if spread_line is not None:
         model_spread   = pred_home_base - pred_away_base
-        market_spread  = -spread_line  # 盤口讓分轉換（-6.5 代表主隊讓 6.5，即預期主贏 6.5）
+        market_spread  = -spread_line  # 正數=主隊預期贏，負數=客隊預期贏
+
+        # 判斷方向是否一致
+        model_home_wins  = model_spread > 0
+        market_home_wins = market_spread > 0
+
+        if model_home_wins == market_home_wins:
+            # 方向一致 → 提高市場權重（市場對分差幅度校準更準）
+            MARKET_WEIGHT = 0.65
+        else:
+            # 方向相反 → 模型發現市場忽略的東西，降低市場影響
+            MARKET_WEIGHT = 0.30
+
         blended_spread = model_spread * (1 - MARKET_WEIGHT) + market_spread * MARKET_WEIGHT
         adjustment     = blended_spread - model_spread
         pred_home_base += adjustment / 2
         pred_away_base -= adjustment / 2
+        direction_tag = "同向↑" if model_home_wins == market_home_wins else "反向↓"
         if verbose:
-            print(f"\n  📐 盤口錨定：模型分差 {model_spread:+.1f} → 錨定後 {blended_spread:+.1f}"
-                  f"（盤口 {market_spread:+.1f} 佔 {int(MARKET_WEIGHT*100)}%）")
+            print(f"\n  📐 盤口錨定（{direction_tag} 市場權重{int(MARKET_WEIGHT*100)}%）："
+                  f"模型分差 {model_spread:+.1f} → 錨定後 {blended_spread:+.1f}"
+                  f"（盤口 {market_spread:+.1f}）")
+
 
     # 蒙地卡羅模擬
     rng = np.random.default_rng(42)
