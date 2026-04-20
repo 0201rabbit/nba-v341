@@ -365,6 +365,11 @@ def init_database(db_path: str):
     except sqlite3.OperationalError:
         pass  # Column already exists
 
+    try:
+        c.execute('ALTER TABLE predictions ADD COLUMN playoff_mode INTEGER DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -673,6 +678,7 @@ def save_prediction(pred: dict):
     pred.setdefault('ot_prob', 0.0)
     pred.setdefault('win_pred_confidence', 'LOW')
     pred.setdefault('risk_tags', '[]')
+    pred.setdefault('playoff_mode', False)
 
     conn = sqlite3.connect(DB_PATH)
 
@@ -708,7 +714,7 @@ def save_prediction(pred: dict):
             :sigma_used, :collapse_flag, :collapse_team,
             :injury_snapshot, :pace_home, :pace_away, :mc_simulations,
             :model_params_json, :trigger_session, :risk_tags, :ot_prob,
-            :win_pred_confidence
+            :win_pred_confidence, :playoff_mode
         )
     ''', pred)
     conn.commit()

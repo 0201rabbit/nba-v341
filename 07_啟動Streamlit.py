@@ -179,7 +179,7 @@ if page == "🏠 今日戰情":
                ai_spread, ai_total,
                collapse_flag, early_bet_signal, sigma_used,
                injury_snapshot, pace_home, pace_away,
-               open_line, live_line, total_line, risk_tags, ot_prob
+               open_line, live_line, total_line, risk_tags, ot_prob, playoff_mode
         FROM predictions
         WHERE game_date_est = ?
         GROUP BY home_team, away_team
@@ -422,7 +422,7 @@ elif page == "📅 選擇日期":
                win_prob_home, win_prob_away,
                ai_score_home, ai_score_away,
                collapse_flag, early_bet_signal, sigma_used,
-               injury_snapshot, risk_tags, ot_prob
+               injury_snapshot, risk_tags, ot_prob, playoff_mode
         FROM predictions
         WHERE game_date_est = ?
         GROUP BY home_team, away_team
@@ -458,6 +458,7 @@ elif page == "📅 選擇日期":
             collapse = " 💥崩潰" if row["collapse_flag"] else ""
             r_tags   = json.loads(row.get('risk_tags') or '[]') if pd.notna(row.get('risk_tags')) else []
             risk_str = " ".join([t.split(" ")[0] for t in r_tags]) if r_tags else ""
+            playoff_str = " 🏆季後賽" if row.get("playoff_mode") == 1 else ""
 
             # 找對應結果
             res = df_res[
@@ -473,7 +474,7 @@ elif page == "📅 選擇日期":
                 hit_str = ""
 
             with st.expander(
-                f"{conf_e} **{matchup}**{collapse}　{row['recommended_bet']}  EV {ev_str}{result_str}{hit_str} {risk_str}",
+                f"{conf_e} **{matchup}**{collapse}{playoff_str}　{row['recommended_bet']}  EV {ev_str}{result_str}{hit_str} {risk_str}",
             ):
                 pred_home = row.get('ai_score_home', 0)
                 pred_away = row.get('ai_score_away', 0)

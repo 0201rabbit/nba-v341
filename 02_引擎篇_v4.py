@@ -304,6 +304,25 @@ print(f"   核心缺陣門檻：status multiplier ≥ {CORE_MISSING_MIN_MULTIPLI
 # CELL 14：蒙地卡羅模擬引擎（修正得分公式）
 # ─────────────────────────────────────────────
 
+# ══════════════════════════════════════════════
+# 🏆 季後賽模式 (Playoff Mode)
+# NBA 季後賽通常 4/19 ~ 6/22
+# 效果：降低 Pace（防守強）、加強主場優勢、微調 σ
+# ══════════════════════════════════════════════
+PLAYOFF_PACE_MULT    = 0.95   # 季後賽防守強度↑ → Pace 下調 5%  → 預測總分降約 10 分
+PLAYOFF_HOME_BONUS   = 0.8    # 季後賽主場優勢更大（球迷噪音、主場休息）
+PLAYOFF_SIGMA_ADD    = 0.5    # 季後賽防守效率高 → 分差更難預測，稍微調寬分布
+
+def is_playoff_season(game_date_str: str = None) -> bool:
+    """判斷某場比賽日期是否在 NBA 季後賽期間（4/19 ~ 6/22）"""
+    try:
+        from datetime import datetime as _dt
+        d = _dt.strptime(game_date_str, "%Y-%m-%d") if game_date_str else _dt.utcnow()
+        return (d.month == 4 and d.day >= 19) or (d.month == 5) or (d.month == 6 and d.day <= 22)
+    except Exception:
+        return False
+
+
 def run_monte_carlo(
     home_team: str,
     away_team: str,
@@ -418,6 +437,17 @@ def run_monte_carlo(
     REST_BONUS_OFF = +1.5
     REST_BONUS_DEF = -1.0       # 防守允許率下降代表防守變好
     pace_used = (home_stats['pace'] + away_stats['pace']) / 2
+
+    # 🏆 季後賽模式自動調整
+    playoff_mode = is_playoff_season(custom_params.get('game_date_est') if custom_params else None)
+    if playoff_mode:
+        pace_used        *= PLAYOFF_PACE_MULT
+        home_stats        = dict(home_stats)
+        home_stats['home_adv'] = home_stats.get('home_adv', 2.5) + PLAYOFF_HOME_BONUS
+        if not collapse_flag:
+            sigma         = sigma + PLAYOFF_SIGMA_ADD
+        if verbose:
+            print(f"\n  🏆 季後賽模式：Pace×{PLAYOFF_PACE_MULT} → {pace_used:.1f}  主場優勢+{PLAYOFF_HOME_BONUS}  σ+{PLAYOFF_SIGMA_ADD}")
 
     # 加入傷兵影響後的效率值
     home_off_adj = home_stats['off_rtg'] + home_inj['off_impact'] + home_stats['home_adv']
@@ -571,6 +601,7 @@ def run_monte_carlo(
         'ot_prob':           round(ot_prob, 4),
         'ot_risk_score':     ot_risk_score,
         'ot_risk_level':     ot_risk_level,
+        'playoff_mode':      playoff_mode,
     }
 
 print("✅ 蒙地卡羅引擎就緒（修正版）")
