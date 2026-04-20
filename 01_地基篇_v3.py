@@ -682,15 +682,17 @@ def save_prediction(pred: dict):
 
     conn = sqlite3.connect(DB_PATH)
 
-    # ── 防重複：同一場賽事同一天只存一筆（避免多次執行分析重複寫入）──
+    # ── 防重複：同一場賽事同一天只保留最新一筆（覆蓋舊預測）──
     existing = conn.execute(
         'SELECT COUNT(*) FROM predictions WHERE game_id=? AND game_date_est=?',
         (pred.get('game_id'), pred.get('game_date_est'))
     ).fetchone()[0]
     if existing > 0:
-        print(f"⏭️  已存在，跳過：{pred.get('away_team')} @ {pred.get('home_team')} ({pred.get('game_date_est')})")
-        conn.close()
-        return
+        conn.execute(
+            'DELETE FROM predictions WHERE game_id=? AND game_date_est=?',
+            (pred.get('game_id'), pred.get('game_date_est'))
+        )
+        print(f"🔄 覆蓋舊預測：{pred.get('away_team')} @ {pred.get('home_team')} ({pred.get('game_date_est')})")
 
     conn.execute('''
         INSERT INTO predictions (
@@ -703,7 +705,7 @@ def save_prediction(pred: dict):
             sigma_used, collapse_flag, collapse_team,
             injury_snapshot, pace_home, pace_away, mc_simulations,
             model_params_json, trigger_session, risk_tags, ot_prob,
-            win_pred_confidence
+            win_pred_confidence, playoff_mode
         ) VALUES (
             :game_id, :game_date_est, :game_time_est, :home_team, :away_team,
             :open_line, :live_line, :total_line, :home_odds, :away_odds,
