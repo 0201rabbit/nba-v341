@@ -311,7 +311,8 @@ print(f"   核心缺陣門檻：status multiplier ≥ {CORE_MISSING_MIN_MULTIPLI
 # ══════════════════════════════════════════════
 PLAYOFF_PACE_MULT    = 0.95   # 季後賽防守強度↑ → Pace 下調 5%  → 預測總分降約 10 分
 PLAYOFF_HOME_BONUS   = 0.8    # 季後賽主場優勢更大（球迷噪音、主場休息）
-PLAYOFF_SIGMA_ADD    = 0.5    # 季後賽防守效率高 → 分差更難預測，稍微調寬分布
+PLAYOFF_SIGMA_ADD    = 1.0    # 季後賽不確定性更高 → σ 調寬（4/20 分析：0.5→1.0）
+PLAYOFF_FORM_WEIGHT  = 0.50   # 季後賽近期狀態更重要（例常賽 0.40 → 季後賽 0.50）
 
 def is_playoff_season(game_date_str: str = None) -> bool:
     """判斷某場比賽日期是否在 NBA 季後賽期間（4/19 ~ 6/22）"""
@@ -374,15 +375,19 @@ def run_monte_carlo(
     if away_team not in TEAM_STATS and verbose:
         print(f"   ⚠️  {away_team} 不在資料庫，使用聯盟平均")
 
-    # 《近10場加權》：season_avg × 60% + recent_10 × 40%
+    # 《近10場加權》：season_avg × (1-w) + recent_10 × w
     # 解決「猜到贏家但猜不到分差」—— 熱門狀態的隊伍攻防效率更準確
+    # 🏆 季後賽時提高近期權重（0.40 → 0.50），因為季後賽球隊狀態變化更快
+    playoff_mode = is_playoff_season(custom_params.get('game_date_est') if custom_params else None)
+    fw = PLAYOFF_FORM_WEIGHT if playoff_mode else FORM_WEIGHT
+
     def blend_form(team_name: str, stats: dict) -> dict:
         form = TEAM_FORM.get(team_name)
         if not form:
             return stats
         blended = dict(stats)  # 保留 pace, home_adv 等不變
-        blended['off_rtg'] = stats['off_rtg'] * (1 - FORM_WEIGHT) + form['off_rtg'] * FORM_WEIGHT
-        blended['def_rtg'] = stats['def_rtg'] * (1 - FORM_WEIGHT) + form['def_rtg'] * FORM_WEIGHT
+        blended['off_rtg'] = stats['off_rtg'] * (1 - fw) + form['off_rtg'] * fw
+        blended['def_rtg'] = stats['def_rtg'] * (1 - fw) + form['def_rtg'] * fw
         return blended
 
     home_stats = blend_form(home_team, home_stats)
@@ -438,8 +443,7 @@ def run_monte_carlo(
     REST_BONUS_DEF = -1.0       # 防守允許率下降代表防守變好
     pace_used = (home_stats['pace'] + away_stats['pace']) / 2
 
-    # 🏆 季後賽模式自動調整
-    playoff_mode = is_playoff_season(custom_params.get('game_date_est') if custom_params else None)
+    # 🏆 季後賽模式自動調整（playoff_mode 已在 blend_form 前偵測）
     if playoff_mode:
         pace_used        *= PLAYOFF_PACE_MULT
         home_stats        = dict(home_stats)
@@ -447,7 +451,7 @@ def run_monte_carlo(
         if not collapse_flag:
             sigma         = sigma + PLAYOFF_SIGMA_ADD
         if verbose:
-            print(f"\n  🏆 季後賽模式：Pace×{PLAYOFF_PACE_MULT} → {pace_used:.1f}  主場優勢+{PLAYOFF_HOME_BONUS}  σ+{PLAYOFF_SIGMA_ADD}")
+            print(f"\n  🏆 季後賽模式：Pace×{PLAYOFF_PACE_MULT} → {pace_used:.1f}  主場優勢+{PLAYOFF_HOME_BONUS}  σ+{PLAYOFF_SIGMA_ADD}  近期權重{fw:.0%}")
 
     # 加入傷兵影響後的效率值
     home_off_adj = home_stats['off_rtg'] + home_inj['off_impact'] + home_stats['home_adv']
