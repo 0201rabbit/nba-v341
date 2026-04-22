@@ -310,9 +310,14 @@ print(f"   核心缺陣門檻：status multiplier ≥ {CORE_MISSING_MIN_MULTIPLI
 # 效果：降低 Pace（防守強）、加強主場優勢、微調 σ
 # ══════════════════════════════════════════════
 PLAYOFF_PACE_MULT    = 0.95   # 季後賽防守強度↑ → Pace 下調 5%  → 預測總分降約 10 分
-PLAYOFF_HOME_BONUS   = 0.8    # 季後賽主場優勢更大（球迷噪音、主場休息）
+PLAYOFF_HOME_BONUS   = 0.3    # 季後賽主場加成（4/21 分析：0.8→0.3，6場主隊僅贏1場）
 PLAYOFF_SIGMA_ADD    = 1.0    # 季後賽不確定性更高 → σ 調寬（4/20 分析：0.5→1.0）
 PLAYOFF_FORM_WEIGHT  = 0.50   # 季後賽近期狀態更重要（例常賽 0.40 → 季後賽 0.50）
+
+# 🔄 系列賽 Game 2 客場調整因子（4/21 分析：落後方戰術調整效應）
+PLAYOFF_G2_AWAY_OFF_BOOST = +1.5   # 客隊進攻效率 +1.5（教練調整）
+PLAYOFF_G2_AWAY_DEF_BOOST = -1.0   # 客隊防守效率 -1.0（針對性防守）
+PLAYOFF_G2_HOME_OFF_NERF  = -1.0   # 主隊進攻效率 -1.0（被針對）
 
 def is_playoff_season(game_date_str: str = None) -> bool:
     """判斷某場比賽日期是否在 NBA 季後賽期間（4/19 ~ 6/22）"""
@@ -444,6 +449,7 @@ def run_monte_carlo(
     pace_used = (home_stats['pace'] + away_stats['pace']) / 2
 
     # 🏆 季後賽模式自動調整（playoff_mode 已在 blend_form 前偵測）
+    is_game2 = custom_params.get('series_game_number') == 2 if custom_params else False
     if playoff_mode:
         pace_used        *= PLAYOFF_PACE_MULT
         home_stats        = dict(home_stats)
@@ -458,6 +464,14 @@ def run_monte_carlo(
     home_def_adj = home_stats['def_rtg'] + home_inj['def_impact']
     away_off_adj = away_stats['off_rtg'] + away_inj['off_impact']
     away_def_adj = away_stats['def_rtg'] + away_inj['def_impact']
+
+    # 🔄 系列賽 Game 2 客場調整（落後方戰術調整效應）
+    if playoff_mode and is_game2:
+        away_off_adj += PLAYOFF_G2_AWAY_OFF_BOOST
+        away_def_adj += PLAYOFF_G2_AWAY_DEF_BOOST
+        home_off_adj += PLAYOFF_G2_HOME_OFF_NERF
+        if verbose:
+            print(f"   🔄 Game 2 客場調整：{tn(away_team)} 攻{PLAYOFF_G2_AWAY_OFF_BOOST:+.1f}/守{PLAYOFF_G2_AWAY_DEF_BOOST:+.1f}  {tn(home_team)} 攻{PLAYOFF_G2_HOME_OFF_NERF:+.1f}")
 
     # 《改進》: 背靠背疲勞懲調整
     if b2b_home:
@@ -513,6 +527,11 @@ def run_monte_carlo(
         if model_home_wins == market_home_wins:
             # 方向一致 → 提高市場權重（市場對分差幅度校準更準）
             MARKET_WEIGHT = 0.65
+            # 🏆 季後賽大讓分修正：盤口越大時，市場錨定反而讓模型更偏向主隊
+            if playoff_mode and abs(spread_line) >= 10:
+                MARKET_WEIGHT = 0.20   # 大讓分（≥10分）→ 大幅降低市場影響
+            elif playoff_mode and abs(spread_line) >= 5:
+                MARKET_WEIGHT = 0.40   # 中讓分（≥5分）→ 適度降低
         else:
             # 方向相反 → 模型發現市場忽略的東西，降低市場影響
             MARKET_WEIGHT = 0.30
@@ -860,8 +879,31 @@ def analyze_game(
         except Exception:
             pass  # 偵測失敗時靜默跳過，不影響主流程
 
+    # 🏆 組裝 custom_params（季後賽偵測 + Game 2 調整需要）
+    _custom = {'game_date_est': game_date_est}
+    # 自動偵測系列賽場次：查 DB 中同對戰組合的歷史記錄數
+    if game_date_est:
+        try:
+            import sqlite3 as _sq3
+            _c2 = _sq3.connect(DB_PATH)
+            _g_count = _c2.execute(
+                '''SELECT COUNT(DISTINCT game_date_est) FROM predictions
+                   WHERE (home_team=? AND away_team=?) OR (home_team=? AND away_team=?)''',
+                (home_team, away_team, away_team, home_team)
+            ).fetchone()[0]
+            _c2.close()
+            _series_game = _g_count + 1  # 包含今天 = 第幾場
+            _custom['series_game_number'] = _series_game
+            if _series_game == 2:
+                print(f"   🔄 自動偵測：系列賽 Game {_series_game}（客場調整因子啟用）")
+            elif _series_game > 1:
+                print(f"   📋 自動偵測：系列賽 Game {_series_game}")
+        except Exception:
+            pass
+
     mc       = run_monte_carlo(home_team, away_team, home_injuries, away_injuries, n_simulations,
-                             spread_line=spread_line, b2b_home=b2b_home, b2b_away=b2b_away)
+                             spread_line=spread_line, b2b_home=b2b_home, b2b_away=b2b_away,
+                             custom_params=_custom)
 
     bet_eval = evaluate_bet(mc, spread_line, total_line, home_ml, away_ml)
     best     = bet_eval['best_bet']
