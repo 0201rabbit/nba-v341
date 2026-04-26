@@ -812,6 +812,17 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
     if not candidates:
         return {'best_bet': None, 'all_bets': [], 'confidence': 'SKIP', 'risk_tags': risk_tags}
 
+    # 4. 極端盤口防雷濾網 (Extreme Odds Anomaly)
+    if best['bet_type'] == 'MONEYLINE':
+        raw_ev = calc_ev(best['win_prob'], best['odds'])
+        # 若未經上限截斷的 EV 超過 15%，或隱含勝率乖離率過大
+        if raw_ev > 0.15:
+            risk_tags.append("⚠️ Extreme EV (Anomaly)")
+        else:
+            market_prob = american_to_prob(best['odds'])
+            if abs(best['win_prob'] - market_prob) > 0.30:
+                risk_tags.append("⚠️ Extreme Odds Gap")
+
     # 信心等級
     if ev >= HIGH_CONF_EV and best['win_prob'] >= HIGH_CONF_PROB:
         confidence = 'HIGH'
@@ -826,6 +837,11 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
     has_demote_risk = any(t in demote_tags for t in risk_tags)
     if has_demote_risk and confidence == 'HIGH':
         confidence = 'MED'
+        
+    # 🚨 極端盤口異常強制降為 LOW (避免誤踩深坑)
+    extreme_tags = {'⚠️ Extreme EV (Anomaly)', '⚠️ Extreme Odds Gap'}
+    if any(t in extreme_tags for t in risk_tags):
+        confidence = 'LOW'
 
     return {'best_bet': best, 'all_bets': candidates, 'confidence': confidence, 'risk_tags': risk_tags}
 
