@@ -200,8 +200,8 @@ if page == "🏠 今日戰情":
         # ══════════════════════════════════════
         bet_df = df[df["recommended_bet"] != "SKIP"]
 
-        # ① 高Edge場次（EV > 15%）
-        high_edge_games = len(bet_df[bet_df["ev_value"] > 0.15])
+        # ① 高Edge場次（EV >= 8%）
+        high_edge_games = len(bet_df[bet_df["ev_value"] >= 0.08])
 
         # ② 市場定價錯誤場次（沒有 Market aligned 標記 = 有套利空間）
         def has_market_aligned(tags_json):
@@ -225,9 +225,9 @@ if page == "🏠 今日戰情":
         avg_sigma = df["sigma_used"].mean() if len(df) > 0 else 12.0
 
         # 最終決策
-        if high_edge_games == 0:
+        if high_edge_games == 0 and safe_games == 0:
             nb_decision, nb_color, nb_icon = "NO BET 今天直接休息", "error", "❌"
-            nb_reason = f"無高 EV 場次（EV>15% 共 {high_edge_games} 場）"
+            nb_reason = f"無高 EV 場次（EV>=8% 共 {high_edge_games} 場）且全都是高風險地雷盤"
         elif mispriced_games <= 1:
             nb_decision, nb_color, nb_icon = "NO BET 市場已吃掉優勢", "error", "❌"
             nb_reason = f"市場定價幾乎無誤差（有套利空間場次 {mispriced_games} 場）"
@@ -245,7 +245,7 @@ if page == "🏠 今日戰情":
             nb_reason = f"高Edge {high_edge_games} 場 ✦ 安全場次 {safe_games} 場 ✦ avg σ = {avg_sigma:.1f}"
 
         nb_detail = (
-            f"① 高Edge場次（EV>15%）：{high_edge_games} 場　"
+            f"① 高Edge場次（EV>=8%）：{high_edge_games} 場　"
             f"② 有套利空間：{mispriced_games} 場　"
             f"③ 乾淨無風險：{safe_games} 場　"
             f"④ 平均 σ：{avg_sigma:.1f}"

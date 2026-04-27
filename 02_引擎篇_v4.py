@@ -764,6 +764,11 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
             continue
         # 📊 勝率校準（ML 也要校正）
         prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
+        
+        # 🚫 排除純賠率套利 (Value Bet)：若勝率實質 < 50% 就不推薦
+        if prob_cal < 0.50:
+            continue
+            
         ev = min(calc_ev(prob_cal, odds), EV_MAX)
         if ev > 0:
             candidates.append({
