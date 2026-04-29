@@ -526,7 +526,7 @@ def run_monte_carlo(
 
         if model_home_wins == market_home_wins:
             # 方向一致 → 提高市場權重（市場對分差幅度校準更準）
-            MARKET_WEIGHT = 0.65
+            MARKET_WEIGHT = 0.75
             # 🏆 季後賽大讓分修正：盤口越大時，市場錨定反而讓模型更偏向主隊
             if playoff_mode and abs(spread_line) >= 10:
                 MARKET_WEIGHT = 0.20   # 大讓分（≥10分）→ 大幅降低市場影響
@@ -534,7 +534,7 @@ def run_monte_carlo(
                 MARKET_WEIGHT = 0.40   # 中讓分（≥5分）→ 適度降低
         else:
             # 方向相反 → 模型發現市場忽略的東西，降低市場影響
-            MARKET_WEIGHT = 0.30
+            MARKET_WEIGHT = 0.40
 
         blended_spread = model_spread * (1 - MARKET_WEIGHT) + market_spread * MARKET_WEIGHT
         adjustment     = blended_spread - model_spread
@@ -803,8 +803,8 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
         risk_tags.append("⚠️ Injury chaos")
         
     # 3. Market aligned (盤口已反映)
-    # 📝 修正：原來門檻 0.8 點。但因為在前頭模型已經有 35% 往盤口位移 (MARKET_WEIGHT=0.35)
-    # 所以原始差距 1.2 分以內就會被壓縮到 0.8 內。這裡將門檻下調至 0.5 點，保留一點彈性空間。
+    # 📝 修正：原來門檻 0.8 點。但因為在前頭模型已經有 45% 往盤口位移 (MARKET_WEIGHT=0.45)
+    # 所以原始差距 1.2 分以內就會被壓縮到 0.5 內。這裡門檻維持 0.5 點，保留一點彈性空間。
     if spread_line is not None:
         market_spread = -spread_line
         model_spread = mc['pred_spread']

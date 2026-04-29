@@ -483,7 +483,7 @@ def calculate_daily_performance(game_date_est: str) -> dict:
         'sigma_normal': SIGMA_NORMAL,
         'sigma_collapse': SIGMA_COLLAPSE,
         'kelly_fraction': KELLY_FRACTION,
-        'market_weight': 0.35,
+        'market_weight': 0.45,
         'version': 'V34.1'
     })
 
@@ -591,7 +591,7 @@ def check_param_alerts() -> list:
                 'desc': f"最近 {threshold['days']} 天平均命中率 {avg_rate:.1%}，低於門檻 {threshold['rate']:.0%}",
                 'value': avg_rate,
                 'threshold': threshold['rate'],
-                'action': f"建議將 MARKET_WEIGHT 從 0.35 調高至 0.45，讓預測更貼近市場盤口"
+                'action': f"建議將 MARKET_WEIGHT 從 0.45 調高至 0.55，讓預測更貼近市場盤口"
             }
             alerts.append(alert)
             print(f"  ⚠️  {alert['desc']}")
