@@ -211,6 +211,12 @@ def run_settlement(target_date: str = None):
     print(f"{'─'*55}")
 
     run_daily_pipeline(target_date)
+
+    # 自動回補歷史缺漏（靜默模式：只補最近 14 天，避免太慢）
+    print(f"\n{'─'*40}")
+    print("🔄 檢查歷史缺漏...")
+    backfill_settlements(days_back=14)
+
     print("✅ 結算完成，命中率已更新")
 
 
@@ -248,6 +254,8 @@ print(f"   run_today_analysis()  ← 今日分析")
 print(f"   run_morning_push()    ← 早上推播")
 print(f"   run_settlement()      ← 對獎結算（昨天）")
 print(f"   run_settlement('{TARGET_DATE}')  ← 對指定日期結算")
+print(f"   backfill_settlements()  ← 回補所有歷史缺漏")
+print(f"   backfill_settlements(dry_run=True)  ← 先看有哪些缺漏")
 print(f"   restart_streamlit()   ← Streamlit 網址失效時重啟")
 
 

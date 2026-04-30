@@ -400,6 +400,148 @@ print("✅ 自動對獎模組就緒")
 
 
 # ─────────────────────────────────────────────
+# CELL 25b：歷史回補結算（修復場次跳動）
+# ─────────────────────────────────────────────
+
+def backfill_settlements(days_back: int = 30, dry_run: bool = False):
+    """
+    自動回補所有「有預測但沒對獎」的歷史場次
+
+    原理：掃描 predictions 表中有記錄、但 results 表中沒有對應
+    game_id 的日期，逐日用 stats.nba.com 歷史端點補抓比分並對獎。
+
+    參數：
+        days_back: 往回掃幾天（預設 30 天）
+        dry_run:   True = 只列出缺漏不實際對獎
+
+    用法：
+        backfill_settlements()          # 自動回補最近 30 天
+        backfill_settlements(60)        # 回補 60 天
+        backfill_settlements(dry_run=True)  # 先看有哪些缺漏
+    """
+    conn = sqlite3.connect(DB_PATH)
+
+    # 找出所有有預測但沒結果的 (game_id, game_date_est)
+    missing = conn.execute('''
+        SELECT DISTINCT p.game_date_est, p.game_id, p.home_team, p.away_team
+        FROM predictions p
+        LEFT JOIN results r ON p.game_id = r.game_id
+        WHERE r.game_id IS NULL
+          AND p.game_date_est >= date('now', ? || ' days')
+          AND p.game_date_est < date('now')
+        ORDER BY p.game_date_est
+    ''', (f'-{days_back}',)).fetchall()
+    conn.close()
+
+    if not missing:
+        print(f"\n  ✅ 最近 {days_back} 天內所有預測都已對獎，無缺漏！")
+        return {'backfilled': 0, 'missing': 0}
+
+    # 按日期分組
+    by_date = {}
+    for date_est, game_id, home, away in missing:
+        if date_est not in by_date:
+            by_date[date_est] = []
+        by_date[date_est].append({
+            'game_id': game_id, 'home': home, 'away': away
+        })
+
+    print(f"\n{'='*55}")
+    print(f"🔄 歷史回補結算")
+    print(f"{'='*55}")
+    print(f"  掃描範圍：最近 {days_back} 天")
+    print(f"  缺漏場次：{len(missing)} 場（{len(by_date)} 天）")
+    print()
+
+    if dry_run:
+        print("  📋 缺漏明細（dry_run 模式，不實際對獎）：")
+        for date_est, games in sorted(by_date.items()):
+            print(f"\n  📅 {date_est}（{len(games)} 場）：")
+            for g in games:
+                print(f"     {g['away']} @ {g['home']}")
+        print(f"\n  💡 執行 backfill_settlements() 開始回補")
+        return {'backfilled': 0, 'missing': len(missing)}
+
+    # 逐日回補
+    total_graded = 0
+    total_failed = 0
+
+    for date_est in sorted(by_date.keys()):
+        games = by_date[date_est]
+        print(f"\n  📅 {date_est}（{len(games)} 場待補）...")
+
+        # 用 fetch_actual_scores 抓歷史比分（會自動走 stats.nba.com 備用方案）
+        try:
+            actual_scores = fetch_actual_scores(date_est)
+        except Exception as e:
+            print(f"     ❌ 抓取失敗：{e}")
+            total_failed += len(games)
+            continue
+
+        if not actual_scores:
+            print(f"     ⚠️  無法取得比分，跳過")
+            total_failed += len(games)
+            continue
+
+        # 逐場比對並對獎
+        day_graded = 0
+        for g in games:
+            match = next(
+                (s for s in actual_scores
+                 if _team_match(s['home_team'], g['home'])
+                 and _team_match(s['away_team'], g['away'])),
+                None
+            )
+            if match and str(match.get('status', '')).startswith('Final'):
+                grade_result(
+                    game_id=g['game_id'],
+                    actual_score_home=match['home_score'],
+                    actual_score_away=match['away_score'],
+                    data_source='backfill'
+                )
+                day_graded += 1
+            else:
+                print(f"     ⚠️  找不到比分：{g['away']} @ {g['home']}")
+                total_failed += 1
+
+        total_graded += day_graded
+        print(f"     ✅ 補獎 {day_graded}/{len(games)} 場")
+
+        # stats.nba.com 限流保護：每日之間暫停 1 秒
+        time.sleep(1)
+
+    # 回補後重算所有涉及日期的績效
+    print(f"\n{'─'*40}")
+    print("📊 重新計算涉及日期的每日績效...")
+    for date_est in sorted(by_date.keys()):
+        try:
+            calculate_daily_performance(date_est)
+        except Exception:
+            pass  # 靜默跳過
+
+    print(f"\n{'='*55}")
+    print(f"✅ 回補結算完成")
+    print(f"   成功：{total_graded} 場  失敗：{total_failed} 場")
+    print(f"{'='*55}")
+
+    # 推播結果
+    if total_graded > 0:
+        tg_send(
+            f"🔄 <b>歷史回補結算完成</b>\n"
+            f"{'─'*30}\n"
+            f"補獎 {total_graded} 場（{len(by_date)} 天）\n"
+            f"失敗 {total_failed} 場\n"
+            f"{'─'*30}\n"
+            f"💡 執行 get_hit_rate() 查看最新命中率"
+        )
+
+    return {'backfilled': total_graded, 'failed': total_failed, 'missing': len(missing)}
+
+
+print("✅ 歷史回補模組就緒")
+
+
+# ─────────────────────────────────────────────
 # CELL 26：每日績效計算與記錄
 # ─────────────────────────────────────────────
 
