@@ -310,8 +310,8 @@ print(f"   核心缺陣門檻：status multiplier ≥ {CORE_MISSING_MIN_MULTIPLI
 # 效果：降低 Pace（防守強）、加強主場優勢、微調 σ
 # ══════════════════════════════════════════════
 PLAYOFF_PACE_MULT    = 0.95   # 季後賽防守強度↑ → Pace 下調 5%  → 預測總分降約 10 分
-PLAYOFF_HOME_BONUS   = 0.3    # 季後賽主場加成（4/21 分析：0.8→0.3，6場主隊僅贏1場）
-PLAYOFF_SIGMA_ADD    = 1.0    # 季後賽不確定性更高 → σ 調寬（4/20 分析：0.5→1.0）
+PLAYOFF_HOME_BONUS   = 0.5    # 季後賽主場加成（方案B折衷：0.8→0.3太激進，改0.5）
+PLAYOFF_SIGMA_ADD    = 0.5    # 季後賽不確定性 → σ 微調（方案B恢復：1.0讓信心太散）
 PLAYOFF_FORM_WEIGHT  = 0.50   # 季後賽近期狀態更重要（例常賽 0.40 → 季後賽 0.50）
 
 # 🔄 系列賽 Game 2 客場調整因子（4/21 分析：落後方戰術調整效應）
@@ -526,7 +526,7 @@ def run_monte_carlo(
 
         if model_home_wins == market_home_wins:
             # 方向一致 → 提高市場權重（市場對分差幅度校準更準）
-            MARKET_WEIGHT = 0.75
+            MARKET_WEIGHT = 0.65
             # 🏆 季後賽大讓分修正：盤口越大時，市場錨定反而讓模型更偏向主隊
             if playoff_mode and abs(spread_line) >= 10:
                 MARKET_WEIGHT = 0.20   # 大讓分（≥10分）→ 大幅降低市場影響
@@ -534,7 +534,7 @@ def run_monte_carlo(
                 MARKET_WEIGHT = 0.40   # 中讓分（≥5分）→ 適度降低
         else:
             # 方向相反 → 模型發現市場忽略的東西，降低市場影響
-            MARKET_WEIGHT = 0.40
+            MARKET_WEIGHT = 0.30
 
         blended_spread = model_spread * (1 - MARKET_WEIGHT) + market_spread * MARKET_WEIGHT
         adjustment     = blended_spread - model_spread
@@ -803,8 +803,8 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
         risk_tags.append("⚠️ Injury chaos")
         
     # 3. Market aligned (盤口已反映)
-    # 📝 修正：原來門檻 0.8 點。但因為在前頭模型已經有 45% 往盤口位移 (MARKET_WEIGHT=0.45)
-    # 所以原始差距 1.2 分以內就會被壓縮到 0.5 內。這裡門檻維持 0.5 點，保留一點彈性空間。
+    # 📝 修正：原來門檻 0.8 點。但因為在前頭模型已經有 35% 往盤口位移 (MARKET_WEIGHT=0.35)
+    # 所以原始差距 1.2 分以內就會被壓縮到 0.8 內。這裡將門檻下調至 0.5 點，保留一點彈性空間。
     if spread_line is not None:
         market_spread = -spread_line
         model_spread = mc['pred_spread']
