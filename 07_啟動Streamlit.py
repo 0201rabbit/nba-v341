@@ -840,17 +840,33 @@ elif page == "🏁 歷史對獎":
     st.title("🏁 歷史對獎記錄")
     st.markdown("---")
 
-    c1,c2,c3,c4 = st.columns(4)
-    with c1:
-        filter_conf = st.multiselect("信心等級", ["HIGH","MED","LOW"], default=["HIGH","MED","LOW"])
-    with c2:
-        filter_result = st.selectbox("下注結果", ["全部","命中","未中","退水"])
-    with c3:
-        filter_type = st.selectbox("推薦類型", ["全部","讓分","大小分","獨贏"])
-    with c4:
-        filter_win_conf = st.multiselect("勝負信心", ["HIGH","MED","LOW"], default=["HIGH","MED","LOW"],
-                                         help="模型對勝負方向的把握度（≥65%=HIGH，≥55%=MED）")
+    # ── 檢視模式切換 ──────────────────────────────
+    view_mode = st.radio(
+        "📌 檢視模式",
+        ["🔭 全部場次（模型預測準確率）", "💰 有推薦場次（投注績效）", "⏭ 模型 SKIP 的場次"],
+        horizontal=True,
+        help=(
+            "【全部場次】：評估模型底層預測邏輯好不好（勝負、分差準不準）\n"
+            "【有推薦場次】：如果完全照模型推薦下注，績效如何\n"
+            "【SKIP 場次】：模型評估後決定不下注的場次（確認過濾是否正確）"
+        )
+    )
+    st.markdown("---")
 
+    # ── 進階篩選器 ────────────────────────────────
+    with st.expander("🔧 進階篩選", expanded=False):
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        with fc1:
+            filter_conf = st.multiselect("信心等級", ["HIGH","MED","LOW"], default=["HIGH","MED","LOW"])
+        with fc2:
+            filter_result = st.selectbox("下注結果", ["全部","命中","未中","待定"])
+        with fc3:
+            filter_type = st.selectbox("推薦類型", ["全部","讓分","大小分","獨贏"])
+        with fc4:
+            filter_win_conf = st.multiselect("勝負信心", ["HIGH","MED","LOW"], default=["HIGH","MED","LOW"],
+                                             help="模型對勝負方向的把握度")
+
+    # ── 撈資料 ────────────────────────────────────
     df = query("""
         SELECT p.game_date_est, p.home_team, p.away_team,
                p.recommended_bet, p.confidence_level,
@@ -871,21 +887,7 @@ elif page == "🏁 歷史對獎":
     if df.empty:
         st.info("📭 此範圍無對獎資料")
     else:
-        if filter_conf:
-            df = df[df["confidence_level"].isin(filter_conf)]
-        if filter_result == "命中":  df = df[df["bet_hit"]==1]
-        elif filter_result == "未中": df = df[df["bet_hit"]==0]
-        elif filter_result == "退水": df = df[df["bet_hit"].isna()]
-        if filter_type == "讓分":
-            df = df[~df["recommended_bet"].str.contains("OVER|UNDER|ML", na=False)]
-        elif filter_type == "大小分":
-            df = df[df["recommended_bet"].str.contains("OVER|UNDER", na=False)]
-        elif filter_type == "獨贏":
-            df = df[df["recommended_bet"].str.contains("ML", na=False)]
-        # 勝負信心篩選
-        if filter_win_conf and len(filter_win_conf) < 3:
-            df = df[df["win_pred_confidence"].isin(filter_win_conf) | df["win_pred_confidence"].isna()]
-
+        # ── 計算 ml_hit ──────────────────────────
         def check_ml_hit(row):
             if pd.isna(row["actual_score_home"]) or pd.isna(row["actual_score_away"]):
                 return None
@@ -895,63 +897,116 @@ elif page == "🏁 歷史對獎":
 
         df["ml_hit"] = df.apply(check_ml_hit, axis=1)
 
-        graded = df[df["bet_hit"].notna()]
-        hits   = (graded["bet_hit"]==1).sum()
-        rate   = hits/len(graded) if len(graded)>0 else 0
-        pnl    = graded["pnl"].sum()
-        
-        ml_graded = df[df["ml_hit"].notna()]
-        ml_hits = (ml_graded["ml_hit"]==1).sum()
-        ml_rate = ml_hits/len(ml_graded) if len(ml_graded)>0 else 0
+        # 判斷是否為「有推薦」場次（不含 SKIP / NO_BET）
+        SKIP_KEYWORDS = ["SKIP","NO_BET","NO BET","跳過","不建議"]
+        def is_recommended(rec):
+            if pd.isna(rec) or str(rec).strip() == "":
+                return False
+            return not any(kw in str(rec).upper() for kw in SKIP_KEYWORDS)
 
-        c1,c2,c3,c4,c5 = st.columns(5)
-        c1.metric("📋 總場次", len(df))
-        c2.metric("✅ 推薦命中", int(hits))
-        c3.metric("🎯 推薦命中率", f"{rate:.1%}" if len(graded)>0 else "--")
-        c4.metric("🏆 勝負預測命中率", f"{ml_rate:.1%}" if len(ml_graded)>0 else "--")
-        c5.metric("💰 總 PnL", f"{pnl:+.2%}" if len(graded)>0 else "--")
+        df["has_rec"] = df["recommended_bet"].apply(is_recommended)
+
+        # ── 依模式篩選 ──────────────────────────
+        if view_mode.startswith("💰"):
+            df_view = df[df["has_rec"]].copy()
+        elif view_mode.startswith("⏭"):
+            df_view = df[~df["has_rec"]].copy()
+        else:
+            df_view = df.copy()
+
+        # 進階篩選
+        if filter_conf:
+            df_view = df_view[df_view["confidence_level"].isin(filter_conf)]
+        if filter_result == "命中":  df_view = df_view[df_view["bet_hit"]==1]
+        elif filter_result == "未中": df_view = df_view[df_view["bet_hit"]==0]
+        elif filter_result == "待定": df_view = df_view[df_view["bet_hit"].isna()]
+        if filter_type == "讓分":
+            df_view = df_view[~df_view["recommended_bet"].str.contains("OVER|UNDER|ML", na=False)]
+        elif filter_type == "大小分":
+            df_view = df_view[df_view["recommended_bet"].str.contains("OVER|UNDER", na=False)]
+        elif filter_type == "獨贏":
+            df_view = df_view[df_view["recommended_bet"].str.contains("ML", na=False)]
+        if filter_win_conf and len(filter_win_conf) < 3:
+            df_view = df_view[df_view["win_pred_confidence"].isin(filter_win_conf) | df_view["win_pred_confidence"].isna()]
+
+        # ── 統計指標 ─────────────────────────────
+        ml_graded  = df_view[df_view["ml_hit"].notna()]
+        ml_hits    = (ml_graded["ml_hit"]==1).sum()
+        ml_rate    = ml_hits / len(ml_graded) if len(ml_graded) > 0 else None
+
+        rec_df     = df_view[df_view["has_rec"]]
+        graded_rec = rec_df[rec_df["bet_hit"].notna()]
+        hits_rec   = (graded_rec["bet_hit"]==1).sum()
+        rate_rec   = hits_rec / len(graded_rec) if len(graded_rec) > 0 else None
+        pnl_total  = graded_rec["pnl"].sum()
+
+        # ── 指標卡片 A：模型準確率 ──────────────
+        st.markdown("#### 🔭 模型預測準確率（勝負方向）")
+        ma1, ma2, ma3 = st.columns(3)
+        ma1.metric("📋 場次總數", len(df_view))
+        ma2.metric("🏆 勝負預測命中",
+                   f"{int(ml_hits)}/{len(ml_graded)}" if len(ml_graded) > 0 else "--")
+        ma3.metric("🏆 勝負命中率",
+                   f"{ml_rate:.1%}" if ml_rate is not None else "--",
+                   help="模型預測哪隊贏 vs 實際結果，與是否下注無關")
+
+        # ── 指標卡片 B：投注績效 ────────────────
+        if not view_mode.startswith("⏭"):
+            st.markdown("#### 💰 推薦下注績效（照推薦下注結果）")
+            mb1, mb2, mb3, mb4 = st.columns(4)
+            mb1.metric("📌 有推薦場次", len(rec_df))
+            mb2.metric("✅ 推薦命中",
+                       f"{int(hits_rec)}/{len(graded_rec)}" if len(graded_rec) > 0 else "--")
+            mb3.metric("🎯 推薦命中率",
+                       f"{rate_rec:.1%}" if rate_rec is not None else "--",
+                       help="依照模型推薦下注的命中率（不含 SKIP 場次）")
+            mb4.metric("💰 累積 PnL",
+                       f"{pnl_total:+.2%}" if len(graded_rec) > 0 else "--",
+                       delta_color="normal")
+
         st.markdown("---")
 
-        disp = df.copy()
-        disp["對戰"] = disp["away_team"].apply(tn) + " @ " + disp["home_team"].apply(tn)
-        disp["預測比分"] = disp.apply(
+        # ── 表格 ─────────────────────────────────
+        disp = df_view.copy()
+        disp["對戰"]         = disp["away_team"].apply(tn) + " @ " + disp["home_team"].apply(tn)
+        disp["預測比分"]     = disp.apply(
             lambda r: f"{r['ai_score_away']:.0f}:{r['ai_score_home']:.0f}"
                       if pd.notna(r["ai_score_home"]) else "--", axis=1)
-        disp["實際比分"] = disp.apply(
+        disp["實際比分"]     = disp.apply(
             lambda r: f"{r['actual_score_away']:.0f}:{r['actual_score_home']:.0f}"
                       if pd.notna(r["actual_score_home"]) else "待定", axis=1)
-        disp["推薦命中"] = disp["bet_hit"].map({1.0:"✅",0.0:"❌"}).fillna("⏳")
         disp["勝負預測命中"] = disp["ml_hit"].map({1.0:"✅",0.0:"❌"}).fillna("⏳")
-        disp["PnL"]  = disp["pnl"].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "--")
-        disp["EV"]   = disp["ev_value"].apply(lambda x: f"{x:+.1%}" if pd.notna(x) else "--")
+        disp["推薦命中"]     = disp.apply(
+            lambda r: ("✅" if r["bet_hit"]==1 else "❌" if r["bet_hit"]==0 else "⏳")
+                      if r["has_rec"] else "⏭ SKIP", axis=1)
+        disp["PnL"]          = disp["pnl"].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "--")
+        disp["EV"]           = disp["ev_value"].apply(lambda x: f"{x:+.1%}" if pd.notna(x) else "--")
 
-        # ✅ 讓分結果加上盤口標注（讓讀者一目了然）
         def fmt_spread_result(row):
             sr = row.get("spread_result")
-            if not sr or pd.isna(sr):
-                return "待定"
+            if not sr or pd.isna(sr): return "待定"
             ll = row.get("live_line")
-            if pd.notna(ll):
-                # live_line 是主隊讓分，負數=主隊讓分，正數=主隊獲讓
-                direction = f"主讓 {ll:+.1f}"
-                return f"{sr}（{direction}）"
-            return sr
+            return f"{sr}（主讓 {ll:+.1f}）" if pd.notna(ll) else sr
         disp["讓分結果"] = disp.apply(fmt_spread_result, axis=1)
+        disp["勝負信心"] = disp["win_pred_confidence"].map({"HIGH":"🎯 HIGH","MED":"⚡ MED","LOW":"💧 LOW"}).fillna("--")
 
-        # ✅ 勝負信心顯示
-        wpc_icon = {"HIGH":"🎯 HIGH", "MED":"⚡ MED", "LOW":"💧 LOW"}
-        disp["勝負信心"] = disp["win_pred_confidence"].map(wpc_icon).fillna("--")
+        if view_mode.startswith("⏭"):
+            cols_show = ["game_date_est","對戰","recommended_bet","confidence_level",
+                         "勝負信心","預測比分","實際比分","勝負預測命中","讓分結果","EV"]
+        else:
+            cols_show = ["game_date_est","對戰","recommended_bet","confidence_level",
+                         "勝負信心","預測比分","實際比分","勝負預測命中","推薦命中","讓分結果","PnL","EV"]
 
         st.dataframe(
-            disp[["game_date_est","對戰","recommended_bet",
-                  "confidence_level","勝負信心","預測比分","實際比分","讓分結果","推薦命中","勝負預測命中","PnL","EV"]]
-            .rename(columns={"game_date_est":"日期","recommended_bet":"推薦",
-                             "confidence_level":"信心"}),
+            disp[cols_show].rename(columns={
+                "game_date_est":"日期","recommended_bet":"推薦","confidence_level":"信心"
+            }),
             use_container_width=True, hide_index=True)
 
         csv = disp.to_csv(index=False, encoding="utf-8-sig")
         st.download_button("⬇️ 匯出 CSV", csv,
             file_name=f"nba_{date_start}_{date_end}.csv", mime="text/csv")
+
 
 # ══════════════════════════════════════
 # 頁面 5：命中率日曆

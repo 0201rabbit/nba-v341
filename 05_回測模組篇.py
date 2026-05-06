@@ -98,9 +98,10 @@ init_backtest_tables()
 
 def fetch_actual_scores(game_date_est: str) -> list:
     """
-    從 NBA 官方 S3 端點抓取比賽結果
+    從 NBA 官方端點抓取比賽結果
     完全免費，無需任何 API Key ✅
-    同時支援今天和昨天的比賽結果
+    依序嘗試：NBA S3 → ESPN → stats.nba.com
+    支援今天及歷史任意日期
     """
     if DEV_MODE:
         print(f"🔒 DEV_MODE：回傳假比分資料")
@@ -116,30 +117,25 @@ def fetch_actual_scores(game_date_est: str) -> list:
     import requests
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-    # NBA S3 端點（可抓今天和近期歷史比賽）
-    ENDPOINTS = [
-        "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData/scoreboard/todaysScoreboard_00.json",
-        "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json",
-    ]
-
     # 目標日期的 gcode 前綴（格式：YYYYMMDD）
     target_prefix = game_date_est.replace('-', '')
 
-    for url in ENDPOINTS:
+    # ── 主要方案：NBA 官方 S3 端點（今日 / 近期）──
+    S3_ENDPOINTS = [
+        "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData/scoreboard/todaysScoreboard_00.json",
+        "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json",
+    ]
+    for url in S3_ENDPOINTS:
         try:
-            resp = requests.get(url, headers=headers, timeout=15)
+            resp = requests.get(url, headers=headers, timeout=12)
             if resp.status_code != 200:
                 continue
-
             data  = resp.json()
             games = data.get('scoreboard', {}).get('games', [])
-
             if not games:
                 continue
-
             results = []
             for g in games:
-                # 過濾指定日期
                 game_code = g.get('gameCode', '')
                 if not game_code.startswith(target_prefix):
                     continue
@@ -156,16 +152,66 @@ def fetch_actual_scores(game_date_est: str) -> list:
                     'game_id':    g.get('gameId', ''),
                 })
             if results:
-                print(f"   ✅ NBA 官方取得 {len(results)} 場結果（{game_date_est}）")
+                print(f"   ✅ NBA 官方 S3 取得 {len(results)} 場結果（{game_date_est}）")
                 return results
-
         except Exception as e:
-            print(f"   ⚠️  端點失敗：{e}")
+            print(f"   ⚠️  NBA S3 端點失敗：{e}")
             continue
 
-    # ── 備用方案 1：stats.nba.com scoreboardv2（支援歷史任意日期）──
+    # ── 備用方案 1：ESPN 公開 API（台灣可直連，支援歷史任意日期）──
     try:
-        # NBA stats API 需要特定請求頭才能正常存取
+        espn_url = (
+            f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+            f"?dates={target_prefix}&limit=20"
+        )
+        resp = requests.get(espn_url, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            events = resp.json().get('events', [])
+            results = []
+            for event in events:
+                comps = event.get('competitions', [])
+                if not comps:
+                    continue
+                comp = comps[0]
+                # 只取已完賽的場次
+                if not comp.get('status', {}).get('type', {}).get('completed', False):
+                    continue
+                competitors = comp.get('competitors', [])
+                if len(competitors) < 2:
+                    continue
+                home_c = next((c for c in competitors if c.get('homeAway') == 'home'), None)
+                away_c = next((c for c in competitors if c.get('homeAway') == 'away'), None)
+                if not home_c or not away_c:
+                    continue
+                home_name = _normalize_nba_team(home_c.get('team', {}).get('displayName', ''))
+                away_name = _normalize_nba_team(away_c.get('team', {}).get('displayName', ''))
+                try:
+                    home_score = int(home_c.get('score', 0))
+                    away_score = int(away_c.get('score', 0))
+                except (ValueError, TypeError):
+                    continue
+                if home_score == 0 and away_score == 0:
+                    continue  # 跳過尚未開始的場次
+                results.append({
+                    'home_team':  home_name,
+                    'away_team':  away_name,
+                    'home_score': home_score,
+                    'away_score': away_score,
+                    'status':     'Final',
+                    'game_id':    event.get('id', ''),
+                })
+            if results:
+                print(f"   ✅ ESPN 取得 {len(results)} 場結果（{game_date_est}）")
+                return results
+            else:
+                print(f"   ⚠️  ESPN：當日無已完賽場次（比賽可能尚未結束）")
+        else:
+            print(f"   ⚠️  ESPN HTTP {resp.status_code}")
+    except Exception as e:
+        print(f"   ⚠️  ESPN 失敗：{e}")
+
+    # ── 備用方案 2：stats.nba.com scoreboardv2（需要特殊 Header，台灣有時被擋）──
+    try:
         nba_headers = {
             'Accept': 'application/json, text/plain, */*',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -177,7 +223,6 @@ def fetch_actual_scores(game_date_est: str) -> list:
             'x-nba-stats-token': 'true',
             'Origin': 'https://www.nba.com',
         }
-        # 格式：MM/DD/YYYY
         from datetime import datetime as _dt2
         d = _dt2.strptime(game_date_est, '%Y-%m-%d')
         game_date_fmt = d.strftime('%m/%d/%Y')
@@ -188,18 +233,15 @@ def fetch_actual_scores(game_date_est: str) -> list:
         resp = requests.get(stats_url, headers=nba_headers, timeout=20)
         if resp.status_code == 200:
             result_sets = resp.json().get('resultSets', [])
-            # LineScore 包含每隊得分
-            line_score = next((rs for rs in result_sets if rs['name'] == 'LineScore'), None)
+            line_score  = next((rs for rs in result_sets if rs['name'] == 'LineScore'), None)
             game_header = next((rs for rs in result_sets if rs['name'] == 'GameHeader'), None)
             if line_score and game_header:
                 ls_hdrs = line_score['headers']
                 gh_hdrs = game_header['headers']
-                # 建立 game_id → status 對照
                 status_map = {}
                 for row in game_header['rowSet']:
                     r = dict(zip(gh_hdrs, row))
                     status_map[r['GAME_ID']] = r.get('GAME_STATUS_TEXT', '')
-                # 每場比賽有兩筆 LineScore（主客各一）
                 games_data = {}
                 for row in line_score['rowSet']:
                     r = dict(zip(ls_hdrs, row))
@@ -214,7 +256,6 @@ def fetch_actual_scores(game_date_est: str) -> list:
                     status = status_map.get(gid, '')
                     if 'Final' not in status:
                         continue
-                    # teams[0]=away, teams[1]=home（NBA API 慣例）
                     away_r, home_r = teams[0], teams[1]
                     results.append({
                         'home_team':  _normalize_nba_team(f"{home_r.get('TEAM_CITY_NAME','')} {home_r.get('TEAM_NICKNAME','')}".strip()),
@@ -233,6 +274,7 @@ def fetch_actual_scores(game_date_est: str) -> list:
     print(f"   ❌ 無法取得 {game_date_est} 的比賽結果")
     print(f"   💡 可使用 settle_games_manual('{game_date_est}', scores) 手動補填")
     return []
+
 
 
 def settle_games_manual(game_date_est: str, scores: dict):

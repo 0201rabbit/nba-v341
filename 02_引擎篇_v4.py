@@ -156,7 +156,41 @@ TEAM_FORM = {
 # 調高代表更信任近期狀態，調低代表更信任長期穩定
 FORM_WEIGHT = 0.40
 
+
+# ─────────────────────────────────────────────
+# 🏆 季後賽專用近期數據（PLAYOFF_FORM）
+# 與 TEAM_FORM（例行賽）完全分開，避免互相污染
+# 數據來源：Basketball-Reference → 2026 Playoffs → Team Ratings
+# 更新頻率：每輪結束後更新一次（或每場後手動微調）
+# 更新方式：https://www.basketball-reference.com/playoffs/NBA_2026.html
+# ─────────────────────────────────────────────
+PLAYOFF_FORM = {
+    # ── 東區 8 強（截至 2026/05/05，第一輪數據）──
+    "Boston Celtics":         {"off_rtg": 118.2, "def_rtg": 108.5},
+    "Cleveland Cavaliers":    {"off_rtg": 117.8, "def_rtg": 109.2},
+    "New York Knicks":        {"off_rtg": 116.4, "def_rtg": 110.1},
+    "Indiana Pacers":         {"off_rtg": 115.9, "def_rtg": 112.8},
+    "Milwaukee Bucks":        {"off_rtg": 113.5, "def_rtg": 113.2},
+    "Detroit Pistons":        {"off_rtg": 114.2, "def_rtg": 109.8},
+    "Miami Heat":             {"off_rtg": 112.8, "def_rtg": 108.6},
+    "Orlando Magic":          {"off_rtg": 111.5, "def_rtg": 107.4},
+    # ── 西區 8 強（截至 2026/05/05，第一輪數據）──
+    "Oklahoma City Thunder":  {"off_rtg": 120.1, "def_rtg": 103.8},  # 聯盟最佳防守
+    "Houston Rockets":        {"off_rtg": 116.7, "def_rtg": 108.4},
+    "Minnesota Timberwolves": {"off_rtg": 115.8, "def_rtg": 103.2},  # ← 季後賽防守大幅提升
+    "Los Angeles Lakers":     {"off_rtg": 117.3, "def_rtg": 112.6},
+    "Denver Nuggets":         {"off_rtg": 120.8, "def_rtg": 113.4},
+    "Golden State Warriors":  {"off_rtg": 113.2, "def_rtg": 111.7},
+    "San Antonio Spurs":      {"off_rtg": 116.5, "def_rtg": 112.4},  # ← 季後賽進攻回歸正常
+    "Dallas Mavericks":       {"off_rtg": 112.8, "def_rtg": 115.6},
+    # ── 未晉級季後賽的隊伍：自動 fallback 到 TEAM_FORM ──
+}
+
+# 季後賽 FORM 混合權重（60% > 例行賽 40%，因為直接反映季後賽對抗水準）
+PLAYOFF_FORM_WEIGHT = 0.60
+
 print(f"✅ 球隊基礎數據載入完成：{len(TEAM_STATS)} 支球隊（含近10場加權）")
+print(f"🏆 PLAYOFF_FORM 已載入：{len(PLAYOFF_FORM)} 支季後賽隊伍（季後賽時優先使用）")
 
 
 
@@ -387,23 +421,35 @@ def run_monte_carlo(
     fw = PLAYOFF_FORM_WEIGHT if playoff_mode else FORM_WEIGHT
 
     def blend_form(team_name: str, stats: dict) -> dict:
-        form = TEAM_FORM.get(team_name)
+        # 🏆 季後賽：優先使用 PLAYOFF_FORM（直接反映季後賽對抗）
+        # 📊 例行賽 or 未在 PLAYOFF_FORM 中：退回使用 TEAM_FORM
+        if playoff_mode and team_name in PLAYOFF_FORM:
+            form    = PLAYOFF_FORM[team_name]
+            fw_used = PLAYOFF_FORM_WEIGHT
+        else:
+            form    = TEAM_FORM.get(team_name)
+            fw_used = fw
         if not form:
             return stats
         blended = dict(stats)  # 保留 pace, home_adv 等不變
-        blended['off_rtg'] = stats['off_rtg'] * (1 - fw) + form['off_rtg'] * fw
-        blended['def_rtg'] = stats['def_rtg'] * (1 - fw) + form['def_rtg'] * fw
+        blended['off_rtg'] = stats['off_rtg'] * (1 - fw_used) + form['off_rtg'] * fw_used
+        blended['def_rtg'] = stats['def_rtg'] * (1 - fw_used) + form['def_rtg'] * fw_used
         return blended
 
     home_stats = blend_form(home_team, home_stats)
     away_stats = blend_form(away_team, away_stats)
     if verbose:
-        hf = TEAM_FORM.get(home_team)
-        af = TEAM_FORM.get(away_team)
+        # 顯示實際使用的 FORM 來源（季後賽 or 例行賽）
+        h_use_playoff = playoff_mode and home_team in PLAYOFF_FORM
+        a_use_playoff = playoff_mode and away_team in PLAYOFF_FORM
+        hf = PLAYOFF_FORM.get(home_team) if h_use_playoff else TEAM_FORM.get(home_team)
+        af = PLAYOFF_FORM.get(away_team) if a_use_playoff else TEAM_FORM.get(away_team)
+        h_src = f"🏆季後賽FORM({int(PLAYOFF_FORM_WEIGHT*100)}%)" if h_use_playoff else f"📊例行賽FORM({int(fw*100)}%)"
+        a_src = f"🏆季後賽FORM({int(PLAYOFF_FORM_WEIGHT*100)}%)" if a_use_playoff else f"📊例行賽FORM({int(fw*100)}%)"
         if hf:
-            print(f"   📈 {tn(home_team)} 近10場加權：攻{hf['off_rtg']:.1f}→{home_stats['off_rtg']:.1f}  守{hf['def_rtg']:.1f}→{home_stats['def_rtg']:.1f}")
+            print(f"   📈 {tn(home_team)} {h_src}：攻{hf['off_rtg']:.1f}→{home_stats['off_rtg']:.1f}  守{hf['def_rtg']:.1f}→{home_stats['def_rtg']:.1f}")
         if af:
-            print(f"   📈 {tn(away_team)} 近10場加權：攻{af['off_rtg']:.1f}→{away_stats['off_rtg']:.1f}  守{af['def_rtg']:.1f}→{away_stats['def_rtg']:.1f}")
+            print(f"   📈 {tn(away_team)} {a_src}：攻{af['off_rtg']:.1f}→{away_stats['off_rtg']:.1f}  守{af['def_rtg']:.1f}→{away_stats['def_rtg']:.1f}")
 
 
 
@@ -620,6 +666,10 @@ def run_monte_carlo(
         'pace_used':         round(pace_used, 1),
         'pred_home_base':    round(pred_home_base, 1),
         'pred_away_base':    round(pred_away_base, 1),
+        # 📌 鎖定前的純模型分差（用於 Spread Gap 安全過濾）
+        'pred_spread_model_raw': round(
+            (model_spread if spread_line is not None else float(np.mean(spread_sims))), 1
+        ),
         'too_many_injuries': home_inj.get('too_many_injuries', False) or away_inj.get('too_many_injuries', False),
         'ot_prob':           round(ot_prob, 4),
         'ot_risk_score':     ot_risk_score,
@@ -661,7 +711,13 @@ HIGH_CONF_EV      = 0.10   # HIGH 最低 EV
 HIGH_CONF_PROB    = 0.65   # HIGH 最低勝率（提高：-8.43% PnL 代表需更嚴格賠規）
 TOO_MANY_INJ_CONF = 'MED'  # 傷兵過多時最高只能 MED
 
-# 管 EV 校準係數
+# ── Spread Gap 安全門檻（5/5 OKC -15.5 vs Lakers 教訓）──
+# 當「模型預測分差」與「市場讓分」相差超過此門檻
+# 代表模型對這場沒把握 → 直接 SKIP 不推薦讓分
+# 邏輯：分差差 5 分以上 = 模型算 OKC+10 但市場給 -15.5，根本不夠信心
+SPREAD_GAP_SKIP_THRESHOLD = 5.0   # 分差 GAP 超過 5 分 → SKIP 讓分推薦
+
+# EV 校準係數
 # 實際 PnL=-8.43%→實際命中率≈8%，模型預期 62%，需大幅萎縮
 PROB_SHRINK  = 0.65   # 勝率向 50% 萎縮 35%
 # 历史命中率：OVER=47.4%，UNDER=22.2%，兩者都不賠錢
@@ -699,12 +755,19 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
     if spread_line is not None:
         target_margin = -spread_line
         edge_gap = abs(mc['pred_spread'] - target_margin)
-        
-        if edge_gap <= 10.0:
+
+        # 🚫 Spread Gap 安全過濾：用「鎖定前純模型分差」 vs 市場讓分
+        # （鎖定前更能反映模型真實不確定性，鎖定後被市場拉近會掩蓋差距）
+        model_raw_spread = mc.get('pred_spread_model_raw', mc['pred_spread'])
+        spread_gap = abs(model_raw_spread - target_margin)
+        if spread_gap > SPREAD_GAP_SKIP_THRESHOLD:
+            # 大讓分場次：模型預測遠低於市場 → 不推薦弱隊蓋牌
+            pass  # 直接跳過這個 if 區塊，不加入 candidates
+        elif edge_gap <= 10.0:
             prob_home_cover = float(1 - scipy_stats.norm.cdf(
                 target_margin, loc=mc['pred_spread'], scale=cover_sigma))
             prob_away_cover = 1 - prob_home_cover
-            
+
             for direction, prob, desc in [
                 ('HOME', prob_home_cover, f"{mc['home_team']} {spread_line:+.1f}"),
                 ('AWAY', prob_away_cover, f"{mc['away_team']} {-spread_line:+.1f}"),
@@ -714,13 +777,14 @@ def evaluate_bet(mc: dict, spread_line: float, total_line: float,
                 # 📊 勝率校準：向 50% 萎縮，修正系統性高估
                 prob_cal = 0.5 + (prob - 0.5) * PROB_SHRINK
                 ev = min(calc_ev(prob_cal, -110), EV_MAX)
-                
+
                 # Margin Check：若預測分差連盤口的 60% 都沒到，大幅砍 EV
+                # （大讓分場次推薦弱隊蓋牌最常見錯誤，加強懲罰）
                 if direction == 'HOME' and mc['pred_spread'] < abs(target_margin) * 0.6:
-                    ev *= 0.3
+                    ev *= 0.2   # 原本 0.3 → 加強到 0.2（大讓分場更嚴格）
                 elif direction == 'AWAY' and -mc['pred_spread'] < abs(target_margin) * 0.6:
-                    ev *= 0.3
-                    
+                    ev *= 0.2   # 原本 0.3 → 加強到 0.2
+
                 if ev > 0:
                     candidates.append({
                         'bet_type': 'SPREAD', 'direction': direction,
