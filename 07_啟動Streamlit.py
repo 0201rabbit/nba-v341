@@ -857,7 +857,7 @@ elif page == "🏁 歷史對獎":
     with st.expander("🔧 進階篩選", expanded=False):
         fc1, fc2, fc3, fc4 = st.columns(4)
         with fc1:
-            filter_conf = st.multiselect("信心等級", ["HIGH","MED","LOW"], default=["HIGH","MED","LOW"])
+            filter_conf = st.multiselect("信心等級", ["HIGH","MED","LOW","SKIP"], default=["HIGH","MED","LOW","SKIP"])
         with fc2:
             filter_result = st.selectbox("下注結果", ["全部","命中","未中","待定"])
         with fc3:
