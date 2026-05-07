@@ -12,7 +12,7 @@ print("✅ 套件安裝完成")
 # （不依賴 Drive 路徑，直接內嵌）
 import os
 
-APP_CODE = '''
+APP_CODE = r'''
 import streamlit as st
 import sqlite3
 import pandas as pd
