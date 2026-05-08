@@ -287,8 +287,23 @@ if page == "🏠 今日戰情":
             r_tags    = json.loads(row.get('risk_tags') or '[]') if pd.notna(row.get('risk_tags')) else []
             risk_str  = " ".join([t.split(" ")[0] for t in r_tags]) if r_tags else ""
 
+            lean_str = ""
+            rec_val = row.get("recommended_bet", "")
+            if str(rec_val).upper() == "SKIP":
+                m_spread = row.get('ai_spread')
+                m_line = row.get('open_line')
+                if pd.notna(m_spread) and pd.notna(m_line):
+                    zh_home_tmp = TEAM_ZH.get(row['home_team'], row['home_team'])
+                    zh_away_tmp = TEAM_ZH.get(row['away_team'], row['away_team'])
+                    mkt_spread = -m_line
+                    if m_spread > mkt_spread:
+                        lean_str = f" (傾向: {zh_home_tmp} {m_line:+.1f})"
+                    else:
+                        lean_str = f" (傾向: {zh_away_tmp} {-m_line:+.1f})"
+            display_rec = f"{rec_val}{lean_str}" if lean_str else rec_val
+
             with st.expander(
-                f"{conf_e} **{matchup}**{collapse}{early_tag}　EV {ev_str} {risk_str}",
+                f"{conf_e} **{matchup}**{collapse}{early_tag}　{display_rec}　EV {ev_str} {risk_str}",
                 expanded=(row["confidence_level"] == "HIGH")
             ):
                 # ── 主要指標 ──
@@ -300,7 +315,7 @@ if page == "🏠 今日戰情":
                 pred_score_str = f"{zh_away} {pred_away:.0f} : {pred_home:.0f} {zh_home}"
 
                 col1, col2, col3 = st.columns(3)
-                col1.metric("推薦下注", row["recommended_bet"])
+                col1.metric("推薦下注", display_rec)
                 col2.metric("預測勝負比分", pred_score_str, delta=f"🏆 {pred_winner_zh} 勝", delta_color="off")
                 col3.metric("Kelly 建議", kelly_str)
 
@@ -473,8 +488,23 @@ elif page == "📅 選擇日期":
                 result_str = "  →  待定"
                 hit_str = ""
 
+            lean_str = ""
+            rec_val = row.get("recommended_bet", "")
+            if str(rec_val).upper() == "SKIP":
+                m_spread = row.get('ai_spread')
+                m_line = row.get('open_line')
+                if pd.notna(m_spread) and pd.notna(m_line):
+                    zh_home_tmp = TEAM_ZH.get(row['home_team'], row['home_team'])
+                    zh_away_tmp = TEAM_ZH.get(row['away_team'], row['away_team'])
+                    mkt_spread = -m_line
+                    if m_spread > mkt_spread:
+                        lean_str = f" (傾向: {zh_home_tmp} {m_line:+.1f})"
+                    else:
+                        lean_str = f" (傾向: {zh_away_tmp} {-m_line:+.1f})"
+            display_rec = f"{rec_val}{lean_str}" if lean_str else rec_val
+
             with st.expander(
-                f"{conf_e} **{matchup}**{collapse}{playoff_str}　{row['recommended_bet']}  EV {ev_str}{result_str}{hit_str} {risk_str}",
+                f"{conf_e} **{matchup}**{collapse}{playoff_str}　{display_rec}  EV {ev_str}{result_str}{hit_str} {risk_str}",
             ):
                 pred_home = row.get('ai_score_home', 0)
                 pred_away = row.get('ai_score_away', 0)
