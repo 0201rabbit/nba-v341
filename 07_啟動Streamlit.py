@@ -1006,9 +1006,56 @@ elif page == "🏁 歷史對獎":
             lambda r: f"{r['actual_score_away']:.0f}:{r['actual_score_home']:.0f}"
                       if pd.notna(r["actual_score_home"]) else "待定", axis=1)
         disp["勝負預測命中"] = disp["ml_hit"].map({1.0:"✅",0.0:"❌"}).fillna("⏳")
-        disp["推薦命中"]     = disp.apply(
-            lambda r: ("✅" if r["bet_hit"]==1 else "❌" if r["bet_hit"]==0 else "⏳")
-                      if r["has_rec"] else "⏭ SKIP", axis=1)
+        def get_lean_and_hit(r):
+            rec = r.get("recommended_bet", "")
+            has_rec = r.get("has_rec", False)
+            if has_rec:
+                return rec, ("✅" if r.get("bet_hit")==1 else "❌" if r.get("bet_hit")==0 else "⏳")
+            
+            ai_home = r.get("ai_score_home")
+            ai_away = r.get("ai_score_away")
+            m_line = r.get("live_line")
+            
+            if pd.isna(ai_home) or pd.isna(ai_away) or pd.isna(m_line):
+                return rec, "⏭ SKIP"
+                
+            m_spread = ai_home - ai_away
+            mkt_spread = -m_line
+            zh_home_tmp = tn(r.get('home_team', ''))
+            zh_home_tmp = TEAM_ZH.get(r['home_team'], r['home_team'])
+            zh_away_tmp = TEAM_ZH.get(r['away_team'], r['away_team'])
+            
+            if m_spread > mkt_spread:
+                lean_str = f"{rec} (傾向: {zh_home_tmp} {m_line:+.1f})"
+                lean_home = True
+            else:
+                lean_str = f"{rec} (傾向: {zh_away_tmp} {-m_line:+.1f})"
+                lean_home = False
+                
+            a_score_home = r.get("actual_score_home")
+            a_score_away = r.get("actual_score_away")
+            
+            if pd.isna(a_score_home) or pd.isna(a_score_away):
+                hit_str = "⏭ SKIP (傾向 ⏳)"
+            else:
+                actual_spread = a_score_home - a_score_away
+                if actual_spread > mkt_spread:
+                    hit_str = "⏭ SKIP (傾向 ✅)" if lean_home else "⏭ SKIP (傾向 ❌)"
+                elif actual_spread < mkt_spread:
+                    hit_str = "⏭ SKIP (傾向 ✅)" if not lean_home else "⏭ SKIP (傾向 ❌)"
+                else:
+                    hit_str = "⏭ SKIP (傾向 💫)"
+                    
+            return lean_str, hit_str
+
+        if not disp.empty:
+            disp_res = disp.apply(lambda r: pd.Series(get_lean_and_hit(r)), axis=1)
+            disp["recommended_bet"] = disp_res[0]
+            disp["推薦命中"] = disp_res[1]
+        else:
+            disp["recommended_bet"] = pd.Series(dtype=str)
+            disp["推薦命中"] = pd.Series(dtype=str)
+            
         disp["PnL"]          = disp["pnl"].apply(lambda x: f"{x:+.2%}" if pd.notna(x) else "--")
         disp["EV"]           = disp["ev_value"].apply(lambda x: f"{x:+.1%}" if pd.notna(x) else "--")
 
